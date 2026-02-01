@@ -1,0 +1,17 @@
+<?xml version="1.0" ?>
+<sdf version="1.7">
+  <world name="default">
+    <!-- gravity is on by default, but being explicit is fine -->
+    <gravity>0 0 -9.81</gravity>
+
+    <!-- Light -->
+    <include>
+      <uri>https://fuel.gazebosim.org/1.0/openrobotics/models/Sun</uri>
+    </include>
+
+    <!-- Static floor with collision -->
+    <include>
+      <uri>https://fuel.gazebosim.org/1.0/openrobotics/models/Ground Plane</uri>
+    </include>
+  </world>
+</sdf>

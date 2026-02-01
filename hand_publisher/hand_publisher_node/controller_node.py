@@ -37,7 +37,8 @@ class ControllerNode(Node):
             self.pub.publish(target_pose)
 
         except TransformException as ex:
-            self.get_logger().warn(f"TF lookup failed: {ex}")
+            # self.get_logger().warn(f"TF lookup failed: {ex}")
+            ...
 
     def pose_from_transform(self, transform_stamped) -> PoseStamped:
         t = transform_stamped.transform.translation

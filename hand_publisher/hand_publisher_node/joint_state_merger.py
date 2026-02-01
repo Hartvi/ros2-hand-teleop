@@ -2,24 +2,50 @@
 import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import JointState
+from std_msgs.msg import Float64MultiArray
 
 
-class JointStateMerger(Node):
+class JointCommandMux(Node):
     def __init__(self):
-        super().__init__("joint_state_merger")
+        super().__init__("joint_command_mux")
+
+        # Match your controller YAML joint order exactly:
+        self.arm_joint_order = [
+            "panda_joint1",
+            "panda_joint2",
+            "panda_joint3",
+            "panda_joint4",
+            "panda_joint5",
+            "panda_joint6",
+            "panda_joint7",
+        ]
+        self.gripper_joint_order = [
+            "panda_finger_joint1"
+        ]  # DO NOT command joint2 (mimic)
 
         self.arm = None
         self.gripper = None
 
         self.sub_arm = self.create_subscription(
-            JointState, "/joint_states", self.cb_arm, 10
+            JointState, "/main_joint_states", self.cb_arm, 10
         )
         self.sub_grip = self.create_subscription(
             JointState, "/gripper_joint_states", self.cb_grip, 10
         )
 
-        self.pub = self.create_publisher(JointState, "/joint_states_merged", 10)
-        self.timer = self.create_timer(1.0 / 30.0, self.tick)
+        self.pub_arm = self.create_publisher(
+            Float64MultiArray, "/arm_controller/commands", 10
+        )
+        self.pub_grip = self.create_publisher(
+            Float64MultiArray, "/gripper_controller/commands", 10
+        )
+
+        self.timer = self.create_timer(1.0 / 60.0, self.tick)  # 60 Hz is fine
+
+        # Optional: also publish desired joint_states for debugging (NOT /joint_states!)
+        self.pub_desired = self.create_publisher(
+            JointState, "/joint_states_desired", 10
+        )
 
     def cb_arm(self, msg: JointState):
         self.arm = msg
@@ -27,36 +53,51 @@ class JointStateMerger(Node):
     def cb_grip(self, msg: JointState):
         self.gripper = msg
 
+    @staticmethod
+    def to_map(msg: JointState | None) -> dict[str, float]:
+        if msg is None:
+            return {}
+        m: dict[str, float] = {}
+        for i, n in enumerate(msg.name):
+            if i < len(msg.position):
+                m[n] = msg.position[i]
+        return m
+
     def tick(self):
-        # Need at least the arm states to do anything useful
         if self.arm is None:
             return
 
-        merged = JointState()
-        merged.header.stamp = self.get_clock().now().to_msg()
+        m = self.to_map(self.arm)
+        m.update(self.to_map(self.gripper))
 
-        name_to_pos = {}
+        # Publish arm commands (only if all required joints are present)
+        try:
+            arm_cmd = [m[j] for j in self.arm_joint_order]
+        except KeyError:
+            # You can log once per few seconds if you want
+            return
 
-        def ingest(msg: JointState | None):
-            if msg is None:
-                return
-            # positions are what robot_state_publisher needs; ignore missing arrays safely
-            for i, n in enumerate(msg.name):
-                if i < len(msg.position):
-                    name_to_pos[n] = msg.position[i]
+        msg_arm = Float64MultiArray()
+        msg_arm.data = arm_cmd
+        self.pub_arm.publish(msg_arm)
 
-        ingest(self.arm)
-        ingest(self.gripper)
+        # Publish gripper commands if present
+        if self.gripper_joint_order[0] in m:
+            msg_grip = Float64MultiArray()
+            msg_grip.data = [m[self.gripper_joint_order[0]]]
+            self.pub_grip.publish(msg_grip)
 
-        merged.name = list(name_to_pos.keys())
-        merged.position = [name_to_pos[n] for n in merged.name]
-
-        self.pub.publish(merged)
+        # Optional debug desired joint states (separate topic)
+        desired = JointState()
+        desired.header.stamp = self.get_clock().now().to_msg()
+        desired.name = list(m.keys())
+        desired.position = [m[n] for n in desired.name]
+        self.pub_desired.publish(desired)
 
 
 def main():
     rclpy.init()
-    node = JointStateMerger()
+    node = JointCommandMux()
     rclpy.spin(node)
     node.destroy_node()
     rclpy.shutdown()

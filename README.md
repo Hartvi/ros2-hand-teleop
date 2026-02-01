@@ -70,3 +70,13 @@ TL;DR: Webcam => MediaPipe landmarks => 3D hand pose => TF => IK => robot joint 
 - integrating physics with Gazebo or other
 - make hand teleoperate a an action server
 - rewrite in CPP to speed things up
+
+Requirements:
+- Python 3.12.3
+- ROS2 Jazzy
+- `sudo apt install ros-${ROS_DISTRO}-trac-ik`
+- `sudo apt install ros-jazzy-moveit-resources-panda-description`
+- requirements.txt
+
+run with gazebo UI:
+- `./utils.py clean build run use_gz:=true gz_gui:=true world:=/home/hartvi/ros_hand_teleop/src/my_world.sdf robot:=panda`

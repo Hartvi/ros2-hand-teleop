@@ -3,7 +3,12 @@ from launch.actions import DeclareLaunchArgument, OpaqueFunction, ExecuteProcess
 from launch.substitutions import LaunchConfiguration
 from launch.launch_context import LaunchContext
 from launch_ros.actions import Node
+from launch.actions import SetEnvironmentVariable
+from ament_index_python.packages import get_package_share_directory
 from pathlib import Path
+from hand_publisher_node.utils import inject_gz_ros2_control
+import xacro
+import os
 
 USE_RVIZ = "use_rviz"
 ROBOT = "robot"
@@ -14,38 +19,58 @@ WORLD = "world"
 GZ_GUI = "gz_gui"
 
 
+def get_moveit_xml(robot_name: str):
+    share = Path(
+        get_package_share_directory(f"moveit_resources_{robot_name}_description")
+    )
+    xacro_path = share / "urdf" / f"{robot_name}.urdf.xacro"
+    return xacro.process_file(str(xacro_path)).toxml()
+
+
 def generate_launch_description():
-    pkg_share = Path(__file__).resolve().parent.parent
+    # pkg_share = Path(__file__).resolve().parent.parent
 
     ROBOT_MAPPINGS = {
         "panda": {
-            "urdf_path": pkg_share / "urdf" / "robots" / "panda_arm.urdf",
+            "urdf_xml": lambda: get_moveit_xml("panda"),
             "base_link": "panda_link0",
             "tip_link": "panda_link8",
-        },
-        "kinova": {
-            "urdf_path": pkg_share
-            / "urdf"
-            / "gen3_7dof"
-            / "urdf"
-            / "GEN3_URDF_V12.urdf",
-            "base_link": "base_link",
-            "tip_link": "end_effector_link",
-            "gripper_finger1": "left_inner_finger_pad",
-            "gripper_finger2": "right_inner_finger_pad",
             "joint_names": [
-                "finger_joint",
-                "left_inner_knuckle_joint",
-                "right_outer_knuckle_joint",
-                "right_inner_knuckle_joint",
-                "left_inner_finger_joint",
-                "right_inner_finger_joint",
+                "panda_finger_joint1",
+                "panda_finger_joint2",
             ],
-            "joint_multipliers": [1.0, 1.0, 1.0, 1.0, -1.0, -1.0],
+            "joint_multipliers": [-1.0, -1.0],
             "q_scale": 10.0,
-            "q_max": 1.0,
+            "q_max": 0.14,
         },
+        # "kinova": {
+        #     "urdf_path": pkg_share
+        #     / "urdf"
+        #     / "gen3_7dof"
+        #     / "urdf"
+        #     / "GEN3_URDF_V12.urdf",
+        #     "base_link": "base_link",
+        #     "tip_link": "end_effector_link",
+        #     "gripper_finger1": "left_inner_finger_pad",
+        #     "gripper_finger2": "right_inner_finger_pad",
+        #     "joint_names": [
+        #         "finger_joint",
+        #         "left_inner_knuckle_joint",
+        #         "right_outer_knuckle_joint",
+        #         "right_inner_knuckle_joint",
+        #         "left_inner_finger_joint",
+        #         "right_inner_finger_joint",
+        #     ],
+        #     "joint_multipliers": [1.0, 1.0, 1.0, 1.0, -1.0, -1.0],
+        #     "q_scale": 10.0,
+        #     "q_max": 1.0,
+        # },
     }
+
+    pkg_share = Path(get_package_share_directory("hand_publisher"))
+    controllers_yaml = pkg_share / "config" / "panda_controllers.yaml"
+
+    # raise RuntimeError(f"CONTROLLER: {controllers_yaml}")
 
     def launch_setup(context: LaunchContext, *args, **kwargs):
         robot_name = LaunchConfiguration(ROBOT).perform(context)
@@ -68,18 +93,30 @@ def generate_launch_description():
 
         cfg = ROBOT_MAPPINGS[robot_name]
 
-        urdf_path = Path(cfg["urdf_path"])
-        if not urdf_path.exists():
-            raise RuntimeError(f"URDF path does not exist: {urdf_path}")
+        if cfg.get("urdf_path"):
+            urdf_path = Path(cfg["urdf_path"])
+            if not urdf_path.exists():
+                raise RuntimeError(f"URDF path does not exist: {urdf_path}")
 
-        urdf_xml = urdf_path.read_text()
+            urdf_xml = urdf_path.read_text()
+        elif cfg.get("urdf_xml"):
+            urdf_xml = cfg["urdf_xml"]()  # lazy eval
+
+            urdf_xml = inject_gz_ros2_control(
+                urdf_xml, robot_name, str(controllers_yaml)
+            )
+
+        else:
+            raise RuntimeError(
+                f"Unknown robot option: {cfg.keys()} must "
+                'contain one of the following: ["urdf_xml", "urdf_path"]'
+            )
 
         # If using Gazebo Sim, prefer sim time across nodes.
         common_params = [{"use_sim_time": use_gz}] if use_gz else []
 
         nodes = []
 
-        # ---- Gazebo Sim (new Gazebo) ----
         if use_gz:
             # Start Gazebo Sim server (+ GUI optionally) with the chosen world.
             # -r = run immediately
@@ -131,15 +168,12 @@ def generate_launch_description():
                 )
             )
 
-        # ---- Your existing stack ----
-
         # Robot description -> TF tree
         nodes.append(
             Node(
                 package="robot_state_publisher",
                 executable="robot_state_publisher",
                 parameters=common_params + [{"robot_description": urdf_xml}],
-                remappings=[("joint_states", "/joint_states_merged")],
                 output="screen",
             )
         )
@@ -225,6 +259,30 @@ def generate_launch_description():
                 parameters=common_params,
                 output="screen",
             ),
+            Node(
+                package="controller_manager",
+                executable="spawner",
+                arguments=[
+                    "joint_state_broadcaster",
+                    "--controller-manager",
+                    "/controller_manager",
+                    "--param-file",
+                    str(controllers_yaml),
+                ],
+                output="screen",
+            ),
+            Node(
+                package="controller_manager",
+                executable="spawner",
+                arguments=[
+                    "arm_controller",
+                    "--controller-manager",
+                    "/controller_manager",
+                    "--param-file",
+                    str(controllers_yaml),
+                ],
+                output="screen",
+            ),
         ]
 
         # Gripper publisher (only if robot config has it)
@@ -264,11 +322,20 @@ def generate_launch_description():
 
     return LaunchDescription(
         [
+            SetEnvironmentVariable(
+                name="GZ_SIM_SYSTEM_PLUGIN_PATH",
+                value="/opt/ros/jazzy/lib:"
+                + os.environ.get("GZ_SIM_SYSTEM_PLUGIN_PATH", ""),
+            ),
+            SetEnvironmentVariable(
+                name="LD_LIBRARY_PATH",
+                value="/opt/ros/jazzy/lib:" + os.environ.get("LD_LIBRARY_PATH", ""),
+            ),
             DeclareLaunchArgument(
                 USE_RVIZ, default_value="true", description="Whether to launch RViz"
             ),
             DeclareLaunchArgument(
-                ROBOT, default_value="kinova", description="Robot config key"
+                ROBOT, default_value="panda", description="Robot config key"
             ),
             DeclareLaunchArgument(
                 USE_GZ,

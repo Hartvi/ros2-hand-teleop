@@ -31,7 +31,7 @@ public:
     pose_sub_ = this->create_subscription<geometry_msgs::msg::PoseStamped>(
         "/ik_target", 10, std::bind(&TracIkNode::on_target_pose, this, std::placeholders::_1));
 
-    sol_pub_ = this->create_publisher<sensor_msgs::msg::JointState>("/joint_states", 10);
+    sol_pub_ = this->create_publisher<sensor_msgs::msg::JointState>("/main_joint_states", 10);
 
     init_timer_ = this->create_wall_timer(
         std::chrono::milliseconds(0),
@@ -65,6 +65,7 @@ private:
         TRAC_IK::Speed // or TRAC_IK::Distance
     );
 
+    RCLCPP_INFO(get_logger(), "robot_description length = %zu", urdf.size());
     bool ok = ik_->getKDLChain(chain_);
     if (!ok)
     {
