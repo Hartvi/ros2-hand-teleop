@@ -19,12 +19,32 @@ WORLD = "world"
 GZ_GUI = "gz_gui"
 
 
-def get_moveit_xml(robot_name: str):
-    share = Path(
-        get_package_share_directory(f"moveit_resources_{robot_name}_description")
-    )
-    xacro_path = share / "urdf" / f"{robot_name}.urdf.xacro"
-    return xacro.process_file(str(xacro_path)).toxml()
+def get_moveit_xml(robot_name: str, weld_to_world: bool = False):
+    share = Path(get_package_share_directory("hand_publisher"))
+    xacro_path = share / "urdf" / "urdf" / f"{robot_name}.urdf.xacro"
+
+    urdf_xml = xacro.process_file(str(xacro_path)).toxml()  # type: ignore
+
+    if weld_to_world:
+        # Inject a world link and fixed joint
+        import xml.etree.ElementTree as ET
+
+        root = ET.fromstring(urdf_xml)
+
+        # Add world link
+        world_link = ET.Element("link", name="world")
+        root.insert(0, world_link)
+
+        # Add fixed joint from world to base
+        fixed_joint = ET.Element("joint", name="world_to_base_fixed", type="fixed")
+        parent = ET.SubElement(fixed_joint, "parent", link="world")
+        child = ET.SubElement(fixed_joint, "child", link="panda_link0")
+        origin = ET.SubElement(fixed_joint, "origin", xyz="0 0 0", rpy="0 0 0")
+        root.append(fixed_joint)
+
+        urdf_xml = ET.tostring(root, encoding="unicode")
+
+    return urdf_xml
 
 
 def generate_launch_description():
@@ -32,7 +52,8 @@ def generate_launch_description():
 
     ROBOT_MAPPINGS = {
         "panda": {
-            "urdf_xml": lambda: get_moveit_xml("panda"),
+            "urdf_xml": lambda: get_moveit_xml("panda", True),
+            # "urdf_path": lambda: get_moveit_xml("panda"),
             "base_link": "panda_link0",
             "tip_link": "panda_link8",
             "joint_names": [
