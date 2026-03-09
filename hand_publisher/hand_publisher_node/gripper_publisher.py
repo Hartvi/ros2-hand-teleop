@@ -32,7 +32,7 @@ class GripperPublisher(Node):
             ],
         )
         self.declare_parameter("joint_multipliers", [1.0, 1.0, 1.0, 1.0, -1.0, -1.0])
-        self.declare_parameter("q_scale", 10.0)
+        self.declare_parameter("q_scale", 1.0)
         self.declare_parameter("q_max", 1.0)
 
         self.joint_names: list[str] = self.get_parameter("joint_names").value
@@ -50,9 +50,10 @@ class GripperPublisher(Node):
     def grip(self, msg: HandPoints):
         hand_points = np.array(msg.points).reshape(21, 3)
         dist = np.linalg.norm(hand_points[4] - hand_points[8])
+        self.get_logger().info("Distance: %f" % dist)
 
         # to limit the noise => closed & open state are further apart with the second power
-        q = 1.0 - self.q_scale**2 * float(dist**2)
+        q = float(self.q_scale * dist) > 0.1  # magic approximate hand-size constant
         self.q = float(np.clip(q, 0.0, self.q_max))
         self.publish()
 

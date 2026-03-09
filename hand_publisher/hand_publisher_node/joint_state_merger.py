@@ -20,8 +20,9 @@ class JointCommandMux(Node):
             "panda_joint7",
         ]
         self.gripper_joint_order = [
-            "panda_finger_joint1"
-        ]  # DO NOT command joint2 (mimic)
+            "panda_finger_joint1",
+            "panda_finger_joint2",
+        ]
 
         self.arm = None
         self.gripper = None
@@ -82,9 +83,10 @@ class JointCommandMux(Node):
         self.pub_arm.publish(msg_arm)
 
         # Publish gripper commands if present
-        if self.gripper_joint_order[0] in m:
+        gripper_cmds = [m[j] for j in self.gripper_joint_order if j in m]
+        if len(gripper_cmds) == len(self.gripper_joint_order):
             msg_grip = Float64MultiArray()
-            msg_grip.data = [m[self.gripper_joint_order[0]]]
+            msg_grip.data = gripper_cmds
             self.pub_grip.publish(msg_grip)
 
         # Optional debug desired joint states (separate topic)

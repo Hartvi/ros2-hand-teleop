@@ -61,8 +61,8 @@ def generate_launch_description():
                 "panda_finger_joint2",
             ],
             "joint_multipliers": [1.0, 1.0],
-            "q_scale": 10.0,
-            "q_max": 0.14,
+            "q_scale": 1.0,
+            "q_max": 1.0,
         },
         # "kinova": {
         #     "urdf_path": pkg_share
@@ -297,6 +297,18 @@ def generate_launch_description():
                 executable="spawner",
                 arguments=[
                     "arm_controller",
+                    "--controller-manager",
+                    "/controller_manager",
+                    "--param-file",
+                    str(controllers_yaml),
+                ],
+                output="screen",
+            ),
+            Node(
+                package="controller_manager",
+                executable="spawner",
+                arguments=[
+                    "gripper_controller",
                     "--controller-manager",
                     "/controller_manager",
                     "--param-file",
