@@ -44,6 +44,11 @@ def inject_gz_ros2_control(
     <state_interface name="position"/>
     <state_interface name="velocity"/>
     </joint>
+    <joint name="panda_finger_joint1">
+    <command_interface name="position"/>
+    <state_interface name="position"/>
+    <state_interface name="velocity"/>
+    </joint>
 </ros2_control>
 
 <gazebo>

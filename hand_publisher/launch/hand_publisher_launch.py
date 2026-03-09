@@ -60,7 +60,7 @@ def generate_launch_description():
                 "panda_finger_joint1",
                 "panda_finger_joint2",
             ],
-            "joint_multipliers": [-1.0, -1.0],
+            "joint_multipliers": [1.0, 1.0],
             "q_scale": 10.0,
             "q_max": 0.14,
         },

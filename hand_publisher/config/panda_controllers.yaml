@@ -8,6 +8,9 @@ controller_manager:
     arm_controller:
       type: forward_command_controller/ForwardCommandController
 
+    gripper_controller:
+      type: forward_command_controller/ForwardCommandController
+
 arm_controller:
   ros__parameters:
     joints:
@@ -18,4 +21,11 @@ arm_controller:
       - panda_joint5
       - panda_joint6
       - panda_joint7
+    interface_name: position
+
+gripper_controller:
+  ros__parameters:
+    joints:
+      - panda_finger_joint1
+    interface_name: position
     interface_name: position

@@ -3,7 +3,7 @@ import numpy as np
 import rclpy
 
 from . import config
-from hand_publisher_interfaces.msg import Image, HandPoints # type: ignore
+from hand_publisher_interfaces.msg import Image, HandPoints  # type: ignore
 from rclpy.node import Node
 
 from typing import TYPE_CHECKING
@@ -63,8 +63,9 @@ class HandPointsNode(Node):
 
     def listener_callback(self, msg: Image):
         shape = (msg.height, msg.width, msg.channels)
-        img = np.array(msg.image).reshape(shape)
-        results = self.hands.process(img)
+        img_bgr = np.array(msg.image).reshape(shape)
+        img_rgb = img_bgr[:, :, ::-1]
+        results = self.hands.process(img_rgb)
 
         hand_points: list[list[Landmark]] = [[]]
         if results.multi_hand_landmarks:

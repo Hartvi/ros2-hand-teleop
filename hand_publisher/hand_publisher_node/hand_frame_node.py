@@ -75,7 +75,7 @@ class HandFrameNode(Node):
         self.static_br.sendTransform(msg)
 
     def raw_hand_frame(self, msg_in: HandPoints, stamp):
-        hand_points = np.array(msg_in.points).reshape(21, 3)
+        hand_points = np.array(msg_in.points, dtype=float).reshape(21, 3)
 
         msg = TransformStamped()
         msg.header.stamp = stamp
@@ -83,8 +83,10 @@ class HandFrameNode(Node):
         msg.child_frame_id = "raw_hand_frame"
         # TODO: publish corrected hand_points here
 
-        # R_rot, t = hand_to_pose(hand_points)
-        R_rot, t = hand_fingers_to_pose(hand_points)
+        try:
+            R_rot, t = hand_fingers_to_pose(hand_points)
+        except ValueError:
+            R_rot, t = hand_to_pose(hand_points)
         x, y, z, w = R_rot.as_quat()
 
         msg.transform.translation.x = float(t[0])

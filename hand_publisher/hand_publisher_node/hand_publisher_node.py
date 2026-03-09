@@ -65,10 +65,10 @@ class HandPublisherNode(Node):
         # Publish visualization marker in base_frame
         low_pass_points = self.lerp(0.5, hand_points, self.old_points)
         hand_point_msg = HandPoints()
-        hand_point_msg.points = low_pass_points.flat
+        hand_point_msg.points = low_pass_points.reshape(-1).tolist()
         self.corrected_point_pub.publish(hand_point_msg)
         self.publish_marker(low_pass_points)
-        self.old_points = hand_points
+        self.old_points = low_pass_points
 
     @staticmethod
     def normalize_hand(

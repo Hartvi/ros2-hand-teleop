@@ -111,7 +111,7 @@ def hand_fingers_to_pose(
     human hand tip points
     human hand base point
     """
-    hand_base = hand_points[1]
-    hand_thumb = hand_points[3]
-    hand_index = hand_points[7]
+    hand_base = hand_points[0]
+    hand_thumb = hand_points[4]
+    hand_index = hand_points[8]
     return clean_pose(hand_thumb, hand_index, hand_base, gripper_displacement)
