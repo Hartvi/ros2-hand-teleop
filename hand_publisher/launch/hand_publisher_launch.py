@@ -18,9 +18,27 @@ USE_GZ = "use_gz"
 WORLD = "world"
 GZ_GUI = "gz_gui"
 
+# Nodes and Packages
+HAND_PUBLISHER_PKG = "hand_publisher"
+CONTROLLER_MANAGER_PKG = "controller_manager"
+CONTROLLER_MANAGER_NODE = "/controller_manager"
+
+# String Constants
+SCREEN = "screen"
+ROBOT_DESCRIPTION = "robot_description"
+BASE_LINK = "base_link"
+TIP_LINK = "tip_link"
+URDF_PATH = "urdf_path"
+URDF_XML = "urdf_xml"
+JOINT_NAMES = "joint_names"
+JOINT_MULTIPLIERS = "joint_multipliers"
+Q_SCALE = "q_scale"
+Q_MAX = "q_max"
+WORLD_STR = "world"
+
 
 def get_moveit_xml(robot_name: str, weld_to_world: bool = False):
-    share = Path(get_package_share_directory("hand_publisher"))
+    share = Path(get_package_share_directory(HAND_PUBLISHER_PKG))
     xacro_path = share / "urdf" / "urdf" / f"{robot_name}.urdf.xacro"
 
     urdf_xml = xacro.process_file(str(xacro_path)).toxml()  # type: ignore
@@ -32,12 +50,12 @@ def get_moveit_xml(robot_name: str, weld_to_world: bool = False):
         root = ET.fromstring(urdf_xml)
 
         # Add world link
-        world_link = ET.Element("link", name="world")
+        world_link = ET.Element("link", name=WORLD_STR)
         root.insert(0, world_link)
 
         # Add fixed joint from world to base
         fixed_joint = ET.Element("joint", name="world_to_base_fixed", type="fixed")
-        parent = ET.SubElement(fixed_joint, "parent", link="world")
+        parent = ET.SubElement(fixed_joint, "parent", link=WORLD_STR)
         child = ET.SubElement(fixed_joint, "child", link="panda_link0")
         origin = ET.SubElement(fixed_joint, "origin", xyz="0 0 0", rpy="0 0 0")
         root.append(fixed_joint)
@@ -52,29 +70,30 @@ def generate_launch_description():
 
     ROBOT_MAPPINGS = {
         "panda": {
-            "urdf_xml": lambda: get_moveit_xml("panda", True),
-            # "urdf_path": lambda: get_moveit_xml("panda"),
-            "base_link": "panda_link0",
-            "tip_link": "panda_link8",
-            "joint_names": [
+            URDF_XML: lambda: get_moveit_xml("panda", True),
+            # URDF_PATH: lambda: get_moveit_xml("panda"),
+            BASE_LINK: "panda_link0",
+            TIP_LINK: "panda_link8",
+            JOINT_NAMES: [
                 "panda_finger_joint1",
                 "panda_finger_joint2",
             ],
-            "joint_multipliers": [1.0, 1.0],
-            "q_scale": 1.0,
-            "q_max": 1.0,
+            JOINT_MULTIPLIERS: [1.0, 1.0],
+            Q_SCALE: 1.0,
+            Q_MAX: 1.0,
+            "closed_distance": 0.1,
         },
         # "kinova": {
-        #     "urdf_path": pkg_share
+        #     URDF_PATH: pkg_share
         #     / "urdf"
         #     / "gen3_7dof"
         #     / "urdf"
         #     / "GEN3_URDF_V12.urdf",
-        #     "base_link": "base_link",
-        #     "tip_link": "end_effector_link",
+        #     BASE_LINK: "base_link",
+        #     TIP_LINK: "end_effector_link",
         #     "gripper_finger1": "left_inner_finger_pad",
         #     "gripper_finger2": "right_inner_finger_pad",
-        #     "joint_names": [
+        #     JOINT_NAMES: [
         #         "finger_joint",
         #         "left_inner_knuckle_joint",
         #         "right_outer_knuckle_joint",
@@ -82,13 +101,13 @@ def generate_launch_description():
         #         "left_inner_finger_joint",
         #         "right_inner_finger_joint",
         #     ],
-        #     "joint_multipliers": [1.0, 1.0, 1.0, 1.0, -1.0, -1.0],
-        #     "q_scale": 10.0,
-        #     "q_max": 1.0,
+        #     JOINT_MULTIPLIERS: [1.0, 1.0, 1.0, 1.0, -1.0, -1.0],
+        #     Q_SCALE: 10.0,
+        #     Q_MAX: 1.0,
         # },
     }
 
-    pkg_share = Path(get_package_share_directory("hand_publisher"))
+    pkg_share = Path(get_package_share_directory(HAND_PUBLISHER_PKG))
     controllers_yaml = pkg_share / "config" / "panda_controllers.yaml"
 
     # raise RuntimeError(f"CONTROLLER: {controllers_yaml}")
@@ -114,14 +133,14 @@ def generate_launch_description():
 
         cfg = ROBOT_MAPPINGS[robot_name]
 
-        if cfg.get("urdf_path"):
-            urdf_path = Path(cfg["urdf_path"])
+        if cfg.get(URDF_PATH):
+            urdf_path = Path(cfg[URDF_PATH])
             if not urdf_path.exists():
                 raise RuntimeError(f"URDF path does not exist: {urdf_path}")
 
             urdf_xml = urdf_path.read_text()
-        elif cfg.get("urdf_xml"):
-            urdf_xml = cfg["urdf_xml"]()  # lazy eval
+        elif cfg.get(URDF_XML):
+            urdf_xml = cfg[URDF_XML]()  # lazy eval
 
             urdf_xml = inject_gz_ros2_control(
                 urdf_xml, robot_name, str(controllers_yaml)
@@ -130,7 +149,7 @@ def generate_launch_description():
         else:
             raise RuntimeError(
                 f"Unknown robot option: {cfg.keys()} must "
-                'contain one of the following: ["urdf_xml", "urdf_path"]'
+                f'contain one of the following: ["{URDF_XML}", "{URDF_PATH}"]'
             )
 
         # If using Gazebo Sim, prefer sim time across nodes.
@@ -151,7 +170,7 @@ def generate_launch_description():
             nodes.append(
                 ExecuteProcess(
                     cmd=gz_cmd,
-                    output="screen",
+                    output=SCREEN,
                 )
             )
 
@@ -161,7 +180,7 @@ def generate_launch_description():
                     package="ros_gz_bridge",
                     executable="parameter_bridge",
                     name="gz_clock_bridge",
-                    output="screen",
+                    output=SCREEN,
                     arguments=["/clock@rosgraph_msgs/msg/Clock[gz.msgs.Clock"],
                 )
             )
@@ -173,12 +192,12 @@ def generate_launch_description():
                     package="ros_gz_sim",
                     executable="create",
                     name="spawn_robot",
-                    output="screen",
+                    output=SCREEN,
                     arguments=[
                         "-name",
                         f"{robot_name}",
                         "-topic",
-                        "robot_description",
+                        ROBOT_DESCRIPTION,
                         "-x",
                         "0",
                         "-y",
@@ -194,8 +213,8 @@ def generate_launch_description():
             Node(
                 package="robot_state_publisher",
                 executable="robot_state_publisher",
-                parameters=common_params + [{"robot_description": urdf_xml}],
-                output="screen",
+                parameters=common_params + [{ROBOT_DESCRIPTION: urdf_xml}],
+                output=SCREEN,
             )
         )
 
@@ -205,9 +224,9 @@ def generate_launch_description():
                 package="tf2_ros",
                 executable="static_transform_publisher",
                 name="world_to_base",
-                arguments=["0", "0", "0", "0", "0", "0", "world", cfg["base_link"]],
+                arguments=["0", "0", "0", "0", "0", "0", WORLD_STR, cfg[BASE_LINK]],
                 parameters=common_params,
-                output="screen",
+                output=SCREEN,
             )
         )
 
@@ -217,15 +236,15 @@ def generate_launch_description():
                 package="ik_node",
                 executable="trac_ik_node",
                 name="trac_ik",
-                output="screen",
+                output=SCREEN,
                 parameters=common_params
                 + [
                     {
-                        "base_link": cfg["base_link"],
-                        "tip_link": cfg["tip_link"],
+                        BASE_LINK: cfg[BASE_LINK],
+                        TIP_LINK: cfg[TIP_LINK],
                         "timeout": 0.02,
                         "eps": 1e-5,
-                        "robot_description": urdf_xml,
+                        ROBOT_DESCRIPTION: urdf_xml,
                     }
                 ],
             )
@@ -233,109 +252,109 @@ def generate_launch_description():
 
         nodes += [
             Node(
-                package="hand_publisher",
-                namespace="hand_publisher",
+                package=HAND_PUBLISHER_PKG,
+                namespace=HAND_PUBLISHER_PKG,
                 executable="hand_image_node",
                 name="hand_image",
                 parameters=common_params,
-                output="screen",
+                output=SCREEN,
             ),
             Node(
-                package="hand_publisher",
-                namespace="hand_publisher",
+                package=HAND_PUBLISHER_PKG,
+                namespace=HAND_PUBLISHER_PKG,
                 executable="hand_points_node",
                 name="hand_points",
                 parameters=common_params,
-                output="screen",
+                output=SCREEN,
             ),
             Node(
-                package="hand_publisher",
-                namespace="hand_publisher",
+                package=HAND_PUBLISHER_PKG,
+                namespace=HAND_PUBLISHER_PKG,
                 executable="hand_publisher_node",
                 name="hand_marker",
                 parameters=common_params,
-                output="screen",
+                output=SCREEN,
             ),
             Node(
-                package="hand_publisher",
-                namespace="hand_publisher",
+                package=HAND_PUBLISHER_PKG,
+                namespace=HAND_PUBLISHER_PKG,
                 executable="hand_frame_node",
                 name="hand_frame",
                 parameters=common_params,
-                output="screen",
+                output=SCREEN,
             ),
             Node(
-                package="hand_publisher",
-                namespace="hand_publisher",
+                package=HAND_PUBLISHER_PKG,
+                namespace=HAND_PUBLISHER_PKG,
                 executable="controller_node",
                 name="controller",
-                parameters=common_params + [{"base_link": cfg["base_link"]}],
-                output="screen",
+                parameters=common_params + [{BASE_LINK: cfg[BASE_LINK]}],
+                output=SCREEN,
             ),
             Node(
-                package="hand_publisher",
-                namespace="hand_publisher",
+                package=HAND_PUBLISHER_PKG,
+                namespace=HAND_PUBLISHER_PKG,
                 executable="joint_state_merger",
                 name="joint_state_merger",
                 parameters=common_params,
-                output="screen",
+                output=SCREEN,
             ),
             Node(
-                package="controller_manager",
+                package=CONTROLLER_MANAGER_PKG,
                 executable="spawner",
                 arguments=[
                     "joint_state_broadcaster",
                     "--controller-manager",
-                    "/controller_manager",
+                    CONTROLLER_MANAGER_NODE,
                     "--param-file",
                     str(controllers_yaml),
                 ],
-                output="screen",
+                output=SCREEN,
             ),
             Node(
-                package="controller_manager",
+                package=CONTROLLER_MANAGER_PKG,
                 executable="spawner",
                 arguments=[
                     "arm_controller",
                     "--controller-manager",
-                    "/controller_manager",
+                    CONTROLLER_MANAGER_NODE,
                     "--param-file",
                     str(controllers_yaml),
                 ],
-                output="screen",
+                output=SCREEN,
             ),
             Node(
-                package="controller_manager",
+                package=CONTROLLER_MANAGER_PKG,
                 executable="spawner",
                 arguments=[
                     "gripper_controller",
                     "--controller-manager",
-                    "/controller_manager",
+                    CONTROLLER_MANAGER_NODE,
                     "--param-file",
                     str(controllers_yaml),
                 ],
-                output="screen",
+                output=SCREEN,
             ),
         ]
 
         # Gripper publisher (only if robot config has it)
-        if cfg.get("joint_names"):
+        if cfg.get(JOINT_NAMES):
             nodes.append(
                 Node(
-                    package="hand_publisher",
-                    namespace="hand_publisher",
+                    package=HAND_PUBLISHER_PKG,
+                    namespace=HAND_PUBLISHER_PKG,
                     executable="gripper_publisher",
                     name="gripper_publisher",
                     parameters=common_params
                     + [
                         {
-                            "joint_names": cfg["joint_names"],
-                            "joint_multipliers": cfg["joint_multipliers"],
-                            "q_scale": cfg["q_scale"],
-                            "q_max": cfg["q_max"],
+                            JOINT_NAMES: cfg[JOINT_NAMES],
+                            JOINT_MULTIPLIERS: cfg[JOINT_MULTIPLIERS],
+                            Q_SCALE: cfg[Q_SCALE],
+                            Q_MAX: cfg[Q_MAX],
                         }
                     ],
-                    output="screen",
+                    output=SCREEN,
                 )
             )
 
@@ -346,7 +365,7 @@ def generate_launch_description():
                     package="rviz2",
                     executable="rviz2",
                     name="rviz2",
-                    output="screen",
+                    output=SCREEN,
                     parameters=common_params,
                 )
             )
