@@ -3,28 +3,16 @@ import numpy as np
 import rclpy
 
 from . import config
-from hand_publisher_interfaces.msg import Image, HandPoints  # type: ignore
+from hand_publisher_interfaces.msg import HandPoints
+from sensor_msgs.msg import Image
+from cv_bridge import CvBridge
 from rclpy.node import Node
-
-from typing import TYPE_CHECKING
 
 
 class Landmark:
     x: float
     y: float
     z: float
-
-
-if TYPE_CHECKING:
-
-    class Image:
-        height: int
-        width: int
-        channels: int
-        image: list
-
-    class HandPoints:
-        points: list[float]
 
 
 class HandPointsNode(Node):
@@ -41,10 +29,11 @@ class HandPointsNode(Node):
             msg_type=Image,
             topic=topic_image,
             callback=self.listener_callback,
-            qos_profile=10,
+            qos_profile=1,
         )
         self.subscription  # prevent unused variable warning
         # INIT
+        self.bridge = CvBridge()
         self.declare_parameter("num_hands_per_src", 1)
         self.num_hands_per_src: list[str] = self.get_parameter("num_hands_per_src").value  # type: ignore
         self.mp_hands = mediapipe.solutions.hands  # type: ignore
@@ -62,9 +51,7 @@ class HandPointsNode(Node):
         )
 
     def listener_callback(self, msg: Image):
-        shape = (msg.height, msg.width, msg.channels)
-        img_bgr = np.array(msg.image).reshape(shape)
-        img_rgb = img_bgr[:, :, ::-1]
+        img_rgb = self.bridge.imgmsg_to_cv2(msg, desired_encoding="rgb8")
         results = self.hands.process(img_rgb)
 
         hand_points: list[list[Landmark]] = [[]]
@@ -79,8 +66,8 @@ class HandPointsNode(Node):
             self.publisher_.publish(msg_hand)
         else:
             self.get_logger().debug(
-                'No hands! Image shape: "%s,%s,%s"'
-                % (msg.height, msg.width, msg.channels)
+                'No hands! Image shape: "%s,%s"'
+                % (msg.height, msg.width)
             )
 
     @staticmethod

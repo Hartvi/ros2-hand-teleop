@@ -2,9 +2,8 @@ from . import config
 import cv2
 import rclpy
 from rclpy.node import Node
-import numpy as np
-
-from hand_publisher_interfaces.msg import Image
+from cv_bridge import CvBridge
+from sensor_msgs.msg import Image
 
 Seconds = float
 
@@ -18,29 +17,21 @@ class ImagePublisherNode(Node):
         src: str | int = 0,
     ):
         super().__init__(node_name=node_name)
-        self.publisher_ = self.create_publisher(Image, topic=topic, qos_profile=10)
+        self.publisher_ = self.create_publisher(Image, topic=topic, qos_profile=1)
         timer_period: Seconds = 0.1
         self.timer = self.create_timer(timer_period, self.timer_callback)
+        self.bridge = CvBridge()
         self.cap = cv2.VideoCapture(src)
         self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, config.IMAGE_SIZE[0])
         self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, config.IMAGE_SIZE[1])
         self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)  # might be ignored by some backends
 
     def timer_callback(self):
-        msg = Image()
         ok, img = self.cap.read()
         if not ok:
             return
         img = cv2.flip(img, 1)
-
-        # self.get_logger().debug(
-        #     'Data type: "%s"/"%s" Max: "%s" Min: "%s" Shape: "%s"'
-        #     % (type(img), img.dtype, np.max(img), np.min(img), img.shape)
-        # )
-        msg.height = img.shape[0]
-        msg.width = img.shape[1]
-        msg.channels = img.shape[2]
-        msg.image = img.reshape(-1)
+        msg = self.bridge.cv2_to_imgmsg(img, encoding="bgr8")
         self.publisher_.publish(msg)
 
     def destroy_node(self):
