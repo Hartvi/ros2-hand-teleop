@@ -41,18 +41,40 @@ class CamInfo:
 def init_caps():
     global CAP_IDS, DROID_IDS, USE_DROID, PUB_METADATA, SUB_METADATA, NUM_SRCS, SRCS, CAMS
     import cv2
+    import threading
 
     def get_caps_ids() -> list[int]:
         ids = []
         idx = 0
-        while True:
-            cap = cv2.VideoCapture(idx)
-            ok, _ = cap.read()
-            cap.release()
-            if not ok:
-                break
-            ids.append(idx)
+        max_probe = 10  # don't probe beyond /dev/video9
+        while idx < max_probe:
+            cap_ready = False
+
+            def try_open_camera():
+                nonlocal cap_ready
+                try:
+                    cap = cv2.VideoCapture(idx)
+                    # Try to read with a very low timeout
+                    cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+                    ok, _ = cap.read()
+                    cap.release()
+                    cap_ready = ok
+                except Exception:
+                    cap_ready = False
+
+            # Probe with timeout to avoid hanging on locked cameras
+            thread = threading.Thread(target=try_open_camera, daemon=True)
+            thread.start()
+            thread.join(timeout=2.0)  # 2 second timeout per camera
+
+            if cap_ready:
+                ids.append(idx)
             idx += 1
+
+        if ids:
+            print(f"Detected cameras at indices: {ids}")
+        else:
+            print("Warning: no cameras detected (using droid or simulation)")
         return ids
 
     def droid_src(use_usb: bool) -> str:
