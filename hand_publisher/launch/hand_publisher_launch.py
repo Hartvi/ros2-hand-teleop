@@ -81,7 +81,7 @@ def generate_launch_description():
             JOINT_MULTIPLIERS: [1.0, 1.0],
             Q_SCALE: 1.0,
             Q_MAX: 1.0,
-            "closed_distance": 0.1,
+            "closed_distance": 0.07,
         },
         # "kinova": {
         #     URDF_PATH: pkg_share

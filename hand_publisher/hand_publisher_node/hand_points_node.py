@@ -73,7 +73,7 @@ class HandPointsNode(Node):
             # assert len(hand_marks) == config.NUM_HANDS_PER_SRC, f"{len(hand_marks)=}!={config.NUM_HANDS_PER_SRC=}"
             hand_points = [list(handLms.landmark) for handLms in hand_marks]
             landmarks = self.landmarks_to_handpoints(hand_points)
-            self.get_logger().debug('Hand points: "%s"' % str(len(landmarks)))
+            # self.get_logger().debug('Hand points: "%s"' % str(len(landmarks)))
             msg_hand = HandPoints()
             msg_hand.points = landmarks
             self.publisher_.publish(msg_hand)
