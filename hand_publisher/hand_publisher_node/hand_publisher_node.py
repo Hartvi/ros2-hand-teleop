@@ -9,10 +9,6 @@ from hand_publisher_interfaces.msg import HandPoints
 from visualization_msgs.msg import Marker
 from geometry_msgs.msg import Point
 
-from tf2_ros import TransformException  # type: ignore
-from tf2_ros.buffer import Buffer
-from tf2_ros.transform_listener import TransformListener
-
 
 class HandPublisherNode(Node):
 
@@ -27,22 +23,21 @@ class HandPublisherNode(Node):
             msg_type=HandPoints,
             topic=topic,
             callback=self.listener_callback,
-            qos_profile=10,
+            qos_profile=1,
         )
         self.subscription  # prevent unused variable warning
 
         # Publisher for RViz markers
-        self.marker_pub = self.create_publisher(Marker, "hand_points_marker", 10)
-        self.finger_pos = self.create_publisher(Point, "finger_dist", 10)
+        self.marker_pub = self.create_publisher(Marker, "hand_points_marker", 1)
         self.corrected_point_pub = self.create_publisher(
-            HandPoints, "hand_points_corrected", 10
+            HandPoints, "hand_points_corrected", 1
         )
         self.base_frame = base_frame
 
         self.old_points = np.zeros((21, 3))
-
-        self.tf_buffer = Buffer()
-        self.tf_listener = TransformListener(self.tf_buffer, self)
+        self.setup_markers()
+        self.lerp_alpha = 0.5
+        self.one_minus_lerp_alpha = 1.0 - self.lerp_alpha
 
         self.declare_parameter("max_hand_size", 18.5)
         self.max_hand_size: float = self.get_parameter("max_hand_size").value  # type: ignore
@@ -56,19 +51,39 @@ class HandPublisherNode(Node):
         self.declare_parameter("scale", 10.0)
         self.scale: float = self.get_parameter("scale").value  # type: ignore
 
+    def setup_markers(self):
+        # Reuse messages and point objects to avoid per-frame allocation
+        self.hand_point_msg = HandPoints()
+        self.marker = Marker()
+        self.marker.header.frame_id = "camera_frame"
+        self.marker.ns = "hand_points"
+        self.marker.id = 0
+        self.marker.type = Marker.SPHERE_LIST  # or Marker.POINTS
+        self.marker.action = Marker.ADD
+        self.marker.pose.orientation.w = 1.0
+        self.marker.scale.x = 0.02
+        self.marker.scale.y = 0.02
+        self.marker.scale.z = 0.02
+        self.marker.color.a = 1.0
+        self.marker.color.r = 0.0
+        self.marker.color.g = 1.0
+        self.marker.color.b = 0.0
+        self.marker_points: list[Point] = [Point() for _ in range(21)]
+        self.marker.points = self.marker_points
+
     def listener_callback(self, msg: HandPoints):
-        hand_points = np.array(msg.points).reshape(21, 3)
+        hand_points = np.asarray(msg.points, dtype=float).reshape(21, 3)
         dist = self.mix_in_distance(hand_points)
         self.normalize_hand(hand_points, dist)
         # self.get_logger().info('Hand points: "%s"' % str(dist))
 
-        # Publish visualization marker in base_frame
-        low_pass_points = self.lerp(0.5, hand_points, self.old_points)
-        hand_point_msg = HandPoints()
-        hand_point_msg.points = low_pass_points.reshape(-1).tolist()
-        self.corrected_point_pub.publish(hand_point_msg)
-        self.publish_marker(low_pass_points)
-        self.old_points = low_pass_points
+        # In-place low-pass filter to avoid extra temporary arrays.
+        self.old_points *= self.one_minus_lerp_alpha
+        self.old_points += self.lerp_alpha * hand_points
+
+        self.hand_point_msg.points = self.old_points.reshape(-1).tolist()
+        self.corrected_point_pub.publish(self.hand_point_msg)
+        self.publish_marker(self.old_points)
 
     @staticmethod
     def normalize_hand(
@@ -98,61 +113,18 @@ class HandPublisherNode(Node):
             * (self.max_hand_size / (self.scale * mean_dist)) ** self.dist_exponent
         )
 
-    @staticmethod
-    def lerp(lerp: float, arr1: np.ndarray, arr2: np.ndarray) -> np.ndarray:
-        if lerp > 0.0:
-            return lerp * arr1 + (1.0 - lerp) * arr2
-        return arr2
-
-    def lookup_transform(self):
-        try:
-            transform = self.tf_buffer.lookup_transform(
-                target_frame="world",
-                source_frame="camera_frame",
-                time=rclpy.time.Time(),  # type: ignore
-            )
-
-            return transform
-
-        except TransformException as ex:
-            self.get_logger().warn(f"TF lookup failed: {ex}")
-
     def publish_marker(self, hand_points: np.ndarray):
-        marker = Marker()
-        marker.header.frame_id = "camera_frame"
-        marker.header.stamp = self.get_clock().now().to_msg()
-
-        marker.ns = "hand_points"
-        marker.id = 0
-        marker.type = Marker.SPHERE_LIST  # or Marker.POINTS
-        marker.action = Marker.ADD
-
-        # Marker pose (identity – points are already in this frame)
-        marker.pose.orientation.w = 1.0
-
-        # Size of each point
-        marker.scale.x = 0.02
-        marker.scale.y = 0.02
-        marker.scale.z = 0.02
-
-        # Color (opaque green)
-        marker.color.a = 1.0
-        marker.color.r = 0.0
-        marker.color.g = 1.0
-        marker.color.b = 0.0
-
-        for p in hand_points:
-            pt = Point()
+        self.marker.header.stamp = self.get_clock().now().to_msg()
+        for idx, p in enumerate(hand_points):
+            pt = self.marker_points[idx]
             pt.x = float(p[0])
             pt.y = float(p[1])
             pt.z = float(p[2])
-            marker.points.append(pt)  # type: ignore
-        self.marker_pub.publish(marker)
+        self.marker_pub.publish(self.marker)
 
 
 def main(args=None):
     rclpy.init(args=args)
-    config.init_caps()
     hand_publisher_node = HandPublisherNode(node_name="hand_publisher_node")
     rclpy.spin(hand_publisher_node)
     rclpy.shutdown()
