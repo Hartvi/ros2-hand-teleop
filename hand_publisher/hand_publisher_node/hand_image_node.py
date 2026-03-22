@@ -51,15 +51,3 @@ def main(args=None):
 
 if __name__ == "__main__":
     main()
-
-# TODO: another node
-# win_name = f"Debug source {src}"
-# frame_id = 0
-# while not stop_event.is_set():
-#     cv2.imshow(win_name, img)
-#     key = cv2.waitKey(1) & 0xFF
-#     if key == ord('q'):
-#         break
-# cap.release()
-# if debug:
-#     cv2.destroyWindow(win_name)

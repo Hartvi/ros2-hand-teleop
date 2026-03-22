@@ -6,9 +6,6 @@ from rclpy.node import Node
 from sensor_msgs.msg import JointState
 
 
-from rclpy.parameter import Parameter
-
-
 class GripperPublisher(Node):
     def __init__(self):
         super().__init__("gripper_publisher")
@@ -36,13 +33,13 @@ class GripperPublisher(Node):
         self.declare_parameter("q_max", 1.0)
         self.declare_parameter("closed_distance", 0.07)
 
-        self.joint_names: list[str] = self.get_parameter("joint_names").value
-        self.joint_multipliers: list[float] = self.get_parameter(
+        self.joint_names: list[str] = self.get_parameter("joint_names").value  # type: ignore
+        self.joint_multipliers: list[float] = self.get_parameter(  # type: ignore
             "joint_multipliers"
         ).value
-        self.q_scale: float = float(self.get_parameter("q_scale").value)
-        self.q_max = float(self.get_parameter("q_max").value)
-        self.closed_distance = float(self.get_parameter("closed_distance").value)
+        self.q_scale: float = float(self.get_parameter("q_scale").value)  # type: ignore
+        self.q_max = float(self.get_parameter("q_max").value)  # type: ignore
+        self.closed_distance = float(self.get_parameter("closed_distance").value)  # type: ignore
 
         if len(self.joint_names) != len(self.joint_multipliers):
             raise ValueError("joint_names and joint_multipliers must have same length")

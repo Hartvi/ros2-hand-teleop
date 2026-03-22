@@ -9,7 +9,7 @@ from hand_publisher_interfaces.msg import HandPoints
 from visualization_msgs.msg import Marker
 from geometry_msgs.msg import Point
 
-from tf2_ros import TransformException
+from tf2_ros import TransformException  # type: ignore
 from tf2_ros.buffer import Buffer
 from tf2_ros.transform_listener import TransformListener
 
@@ -45,16 +45,16 @@ class HandPublisherNode(Node):
         self.tf_listener = TransformListener(self.tf_buffer, self)
 
         self.declare_parameter("max_hand_size", 18.5)
-        self.max_hand_size: float = self.get_parameter("max_hand_size").value
+        self.max_hand_size: float = self.get_parameter("max_hand_size").value  # type: ignore
 
         self.declare_parameter("dist_exponent", 1.145)
-        self.dist_exponent: float = self.get_parameter("dist_exponent").value
+        self.dist_exponent: float = self.get_parameter("dist_exponent").value  # type: ignore
 
         self.declare_parameter("total_scale", 0.0135)
-        self.total_scale: float = self.get_parameter("total_scale").value
+        self.total_scale: float = self.get_parameter("total_scale").value  # type: ignore
 
         self.declare_parameter("scale", 10.0)
-        self.scale: float = self.get_parameter("scale").value
+        self.scale: float = self.get_parameter("scale").value  # type: ignore
 
     def listener_callback(self, msg: HandPoints):
         hand_points = np.array(msg.points).reshape(21, 3)
@@ -79,7 +79,7 @@ class HandPublisherNode(Node):
         points_21_3[:, :2] *= dist
         points_21_3[:, 2] += dist
 
-    def mix_in_distance(self, xyz: np.ndarray):
+    def mix_in_distance(self, xyz: np.ndarray) -> float:
         assert xyz.shape[0] == 21, f"{xyz=}"
 
         def segment_dist(x: np.ndarray) -> np.floating:
@@ -90,8 +90,8 @@ class HandPublisherNode(Node):
         middle_dists = segment_dist(xyz[[0] + list(range(9, 13)), 0:2])
         ring_dists = segment_dist(xyz[[0] + list(range(13, 17)), 0:2])
         pinky_dists = segment_dist(xyz[[0] + list(range(17, 20)), 0:2])
-        mean_dist = np.mean(
-            [thumb_dists, index_dists, middle_dists, ring_dists, pinky_dists]
+        mean_dist: float = float(
+            np.mean([thumb_dists, index_dists, middle_dists, ring_dists, pinky_dists])
         )
         return (
             self.total_scale
@@ -109,7 +109,7 @@ class HandPublisherNode(Node):
             transform = self.tf_buffer.lookup_transform(
                 target_frame="world",
                 source_frame="camera_frame",
-                time=rclpy.time.Time(),
+                time=rclpy.time.Time(),  # type: ignore
             )
 
             return transform
@@ -146,7 +146,7 @@ class HandPublisherNode(Node):
             pt.x = float(p[0])
             pt.y = float(p[1])
             pt.z = float(p[2])
-            marker.points.append(pt)
+            marker.points.append(pt)  # type: ignore
         self.marker_pub.publish(marker)
 
 

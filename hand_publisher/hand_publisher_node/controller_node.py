@@ -4,7 +4,7 @@ import rclpy
 from rclpy.node import Node
 from geometry_msgs.msg import PoseStamped
 
-from tf2_ros import TransformException
+from tf2_ros import TransformException  # type: ignore
 from tf2_ros.buffer import Buffer
 from tf2_ros.transform_listener import TransformListener
 
@@ -30,7 +30,7 @@ class ControllerNode(Node):
             transform = self.tf_buffer.lookup_transform(
                 target_frame=self.base_link,
                 source_frame="hand_frame",
-                time=rclpy.time.Time(),
+                time=rclpy.time.Time(),  # type: ignore
             )
 
             target_pose = self.pose_from_transform(transform)
