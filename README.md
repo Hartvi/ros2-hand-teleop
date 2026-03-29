@@ -64,11 +64,11 @@ TL;DR: Webcam => MediaPipe landmarks => 3D hand pose => TF => IK => robot joint 
 - `ros2 run rviz2 rviz2`
 
 ### Future work
-- smoothing of movements, better position estimates
+- integrate with isaac sim
+- finetune VLA models with custom generated data
 - moveit integration
 - source better urdf/xacro representations
-- integrating physics with Gazebo or other
-- make hand teleoperate a an action server
+- make hand teleoperate as an action server
 - rewrite in CPP to speed things up
 
 Requirements:

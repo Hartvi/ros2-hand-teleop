@@ -16,32 +16,24 @@ def is_closed(hand_points: np.ndarray, threshold: float = 0.15):
     return np.linalg.norm(hand_points[8] - hand_points[4]) < threshold
 
 
-def forward_vector(hand_points: np.ndarray) -> np.ndarray:
-    return hand_points[4] - hand_points[1]
-
-
-def side_vector(hand_points: np.ndarray) -> np.ndarray:
-    return hand_points[5] - hand_points[1]
-
-
 def hand_to_rot(hand_points: np.ndarray) -> R:
-    """This will depend on if the hand is the right hand or left hand
+    """Compute rotation from hand landmark points (right hand assumed).
 
-    Assuming right hand for now"""
-    _forward = forward_vector(hand_points)
+    Uses index finger direction and thumb-to-index axis to form orthonormal frame.
+    """
+    _forward = hand_points[4] - hand_points[1]  # thumb to wrist
     _forward /= np.linalg.norm(_forward)
-    _side_skew_vector = side_vector(hand_points)
-    _orthogonal_side_vec = _forward - _side_skew_vector * np.dot(
-        _forward, _side_skew_vector
-    )
-    _orthogonal_side_vec /= np.linalg.norm(_orthogonal_side_vec)
-    _up = np.cross(_orthogonal_side_vec, _forward)
+
+    _side_skew = hand_points[5] - hand_points[1]  # index to wrist
+    _side = _forward - _side_skew * np.dot(_forward, _side_skew)
+    _side /= np.linalg.norm(_side)
+
+    _up = np.cross(_side, _forward)
     _up /= np.linalg.norm(_up)
-    # assuming camera is looking upwards
-    # TODO: set the camera transform to some position looking from the side
+
     try:
-        return R.from_matrix(np.vstack([_up, -_forward, _orthogonal_side_vec]).T)
-    except:
+        return R.from_matrix(np.vstack([_up, -_forward, _side]).T)
+    except ValueError:
         return R.from_matrix(np.eye(3))
 
 
@@ -87,17 +79,6 @@ def clean_pose(
     tip_center = (tip1 + tip2) / 2.0
     ee_position = tip_center - gripper_displacement * fwd
     return R.from_matrix(rot), ee_position
-
-
-def calculate_gripper_offset(
-    ee: np.ndarray,
-    left_gripper: np.ndarray,
-    right_gripper: np.ndarray,
-) -> float:
-    left = _safe_normalize(left_gripper - right_gripper)
-    fwd = left_gripper - ee
-    fwd = fwd - left * np.dot(left, fwd)
-    return float(np.linalg.norm(fwd))
 
 
 def hand_fingers_to_pose(

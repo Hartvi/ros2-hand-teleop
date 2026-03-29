@@ -10,9 +10,9 @@ class GripperPublisher(Node):
     def __init__(self):
         super().__init__("gripper_publisher")
 
-        self.pub = self.create_publisher(JointState, "/gripper_joint_states", 10)
+        self.pub = self.create_publisher(JointState, "/gripper_joint_states", 1)
         self.sub = self.create_subscription(
-            HandPoints, "hand_points_corrected", self.grip, 10
+            HandPoints, "hand_points_corrected", self.grip, 1
         )
 
         # Parameters
@@ -45,6 +45,7 @@ class GripperPublisher(Node):
             raise ValueError("joint_names and joint_multipliers must have same length")
 
         self.q = 0.0
+        self.joint_state_msg = JointState()
 
     def grip(self, msg: HandPoints):
         hand_points = np.array(msg.points).reshape(21, 3)
@@ -59,13 +60,10 @@ class GripperPublisher(Node):
         self.publish()
 
     def publish(self):
-        msg = JointState()
-        msg.header.stamp = self.get_clock().now().to_msg()
-
-        msg.name = list(self.joint_names)
-        msg.position = [m * self.q for m in self.joint_multipliers]
-
-        self.pub.publish(msg)
+        self.joint_state_msg.header.stamp = self.get_clock().now().to_msg()
+        self.joint_state_msg.name = self.joint_names
+        self.joint_state_msg.position = [m * self.q for m in self.joint_multipliers]
+        self.pub.publish(self.joint_state_msg)
 
 
 def main():

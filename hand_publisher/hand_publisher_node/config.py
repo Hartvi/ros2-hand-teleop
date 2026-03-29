@@ -1,15 +1,8 @@
 import numpy as np
 from dataclasses import dataclass, field
 
-# from .socket import XYZMetadata
-import logging
-
-logger = logging.getLogger(__name__)
-
 USE_DROID = False
-
 IMAGE_SIZE = (1280, 720)
-
 CAMS = ()
 
 
@@ -28,14 +21,6 @@ class CamInfo:
             self.x0 = self.w / 2.0
         if self.y0 < 0:
             self.y0 = self.h / 2.0
-
-    def unnormalize(self, arr: np.ndarray) -> np.ndarray:
-        """Accepts: (N, 2)"""
-        assert arr.shape[1] == 2
-        assert np.min(arr) >= -0.1, f"min: {np.min(arr)}"
-        assert np.max(arr) <= 1.1, f"max: {np.max(arr)}"
-        print("arr", np.min(arr), np.max(arr))
-        return np.concatenate([arr[:, :1] * self.w, arr[:, 1:2] * self.h], axis=1)
 
 
 def init_caps():
@@ -91,18 +76,3 @@ def init_caps():
     CAMS = tuple(CamInfo() for _ in range(NUM_SRCS))
 
     print("NUM SRCS", NUM_SRCS)
-
-
-def match_formula(points: list[list[list[list[float]]]], dists: list[float]):
-    """
-    Calibration procedure:
-    2 components:
-    1. rotation invariance - +- dx
-    2. calibrated distance etalons - more absolute distance
-    """
-    assert len(points) == dists, f"{len(points)} == {dists}"
-    """
-    each set of points[i] was recorded at a certain distance
-    define: points[i] = N frames of different poses of the hand at different distances
-    dists[i] = some value in meters
-    """
