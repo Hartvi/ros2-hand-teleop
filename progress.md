@@ -2,6 +2,10 @@
 
 
 ### TODOs
+- optimize the initial IK such that:
+  1. first perform the IK
+  2. then optimize --- something like scipy.optimize --- the position such that the gripper fingers appropach the hand positions indices 4 & 8
+    - To achieve this we will need to do fast FK and check that the fingers are indeed at the requested positions (might want to use KDL & return the FK function as python-bound so that scipy.optimize.minimize can use it)
 - save data
 - create data set scene
 - automatically detect finger & hand points to align with urdf gripper/ee pose
