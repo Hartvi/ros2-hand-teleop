@@ -2,10 +2,12 @@ import numpy as np
 import rclpy
 from rclpy.node import Node
 from geometry_msgs.msg import PoseStamped
+from std_msgs.msg import Bool
 
 from tf2_ros import TransformException  # type: ignore
 from tf2_ros.buffer import Buffer
 from tf2_ros.transform_listener import TransformListener
+from scipy.spatial.transform import Rotation as R
 
 
 class ControllerNode(Node):
@@ -21,6 +23,23 @@ class ControllerNode(Node):
         )
         self.timer = self.create_timer(0.1, self.lookup_transform)
 
+        # Delta tracking state
+        self.moving = False
+        self.prev_t: np.ndarray | None = None
+        self.prev_R: R | None = None
+        # Accumulated IK target pose (start at a safe default in front of the robot)
+        self.ik_t = np.array([0.4, 0.0, 0.4])
+        self.ik_R = R.identity()
+
+        self.create_subscription(Bool, "moving", self._moving_cb, 1)
+
+    def _moving_cb(self, msg: Bool):
+        if msg.data and not self.moving:
+            # Just started moving - reset previous pose so first delta is zero
+            self.prev_t = None
+            self.prev_R = None
+        self.moving = msg.data
+
     def lookup_transform(self):
         try:
             transform = self.tf_buffer.lookup_transform(
@@ -28,15 +47,36 @@ class ControllerNode(Node):
                 source_frame="hand_frame",
                 time=rclpy.time.Time(),  # type: ignore
             )
-            self.pose_stamped.header.frame_id = self.base_link
-            self.pose_stamped.header.stamp = self.get_clock().now().to_msg()
-            self.pose_stamped.pose.position.x = transform.transform.translation.x
-            self.pose_stamped.pose.position.y = transform.transform.translation.y
-            self.pose_stamped.pose.position.z = transform.transform.translation.z
-            self.pose_stamped.pose.orientation = transform.transform.rotation
-            self.pub.publish(self.pose_stamped)
         except TransformException:
-            pass
+            return
+
+        tf = transform.transform
+        cur_t = np.array([tf.translation.x, tf.translation.y, tf.translation.z])
+        cur_R = R.from_quat(
+            [tf.rotation.x, tf.rotation.y, tf.rotation.z, tf.rotation.w]
+        )
+
+        if self.moving and self.prev_t is not None and self.prev_R is not None:
+            delta_t = cur_t - self.prev_t
+            delta_R = cur_R * self.prev_R.inv()
+            self.ik_t += delta_t
+            self.ik_R = delta_R * self.ik_R
+
+        self.prev_t = cur_t
+        self.prev_R = cur_R
+
+        # Publish accumulated target
+        quat = self.ik_R.as_quat()  # x, y, z, w
+        self.pose_stamped.header.frame_id = self.base_link
+        self.pose_stamped.header.stamp = self.get_clock().now().to_msg()
+        self.pose_stamped.pose.position.x = float(self.ik_t[0])
+        self.pose_stamped.pose.position.y = float(self.ik_t[1])
+        self.pose_stamped.pose.position.z = float(self.ik_t[2])
+        self.pose_stamped.pose.orientation.x = float(quat[0])
+        self.pose_stamped.pose.orientation.y = float(quat[1])
+        self.pose_stamped.pose.orientation.z = float(quat[2])
+        self.pose_stamped.pose.orientation.w = float(quat[3])
+        self.pub.publish(self.pose_stamped)
 
 
 def main(args=None):
