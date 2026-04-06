@@ -1,4 +1,0 @@
-uint8[] image
-int32 width
-int32 height
-int32 channels
