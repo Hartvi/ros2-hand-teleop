@@ -254,14 +254,6 @@ def generate_launch_description():
             Node(
                 package=HAND_PUBLISHER_PKG,
                 namespace=HAND_PUBLISHER_PKG,
-                executable="hand_image_node",
-                name="hand_image",
-                parameters=common_params,
-                output=SCREEN,
-            ),
-            Node(
-                package=HAND_PUBLISHER_PKG,
-                namespace=HAND_PUBLISHER_PKG,
                 executable="hand_points_node",
                 name="hand_points",
                 parameters=common_params,
