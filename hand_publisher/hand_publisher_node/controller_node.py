@@ -1,10 +1,10 @@
 import numpy as np
 import rclpy
 from rclpy.node import Node
-from geometry_msgs.msg import PoseStamped
+from geometry_msgs.msg import PoseStamped, TransformStamped
 from std_msgs.msg import Bool
 
-from tf2_ros import TransformException  # type: ignore
+from tf2_ros import TransformException, TransformBroadcaster  # type: ignore
 from tf2_ros.buffer import Buffer
 from tf2_ros.transform_listener import TransformListener
 from scipy.spatial.transform import Rotation as R
@@ -16,6 +16,7 @@ class ControllerNode(Node):
         self.pub = self.create_publisher(PoseStamped, "/ik_target", 1)
         self.tf_buffer = Buffer()
         self.tf_listener = TransformListener(self.tf_buffer, self)
+        self.br = TransformBroadcaster(self)
         self.pose_stamped = PoseStamped()
         self.declare_parameter("base_link", "base_link")
         self.base_link = (
@@ -26,10 +27,8 @@ class ControllerNode(Node):
         # Delta tracking state
         self.moving = False
         self.prev_t: np.ndarray | None = None
-        self.prev_R: R | None = None
         # Accumulated IK target pose (start at a safe default in front of the robot)
         self.ik_t = np.array([0.4, 0.0, 0.4])
-        self.ik_R = R.identity()
 
         self.create_subscription(Bool, "moving", self._moving_cb, 1)
 
@@ -37,7 +36,6 @@ class ControllerNode(Node):
         if msg.data and not self.moving:
             # Just started moving - reset previous pose so first delta is zero
             self.prev_t = None
-            self.prev_R = None
         self.moving = msg.data
 
     def lookup_transform(self):
@@ -56,17 +54,14 @@ class ControllerNode(Node):
             [tf.rotation.x, tf.rotation.y, tf.rotation.z, tf.rotation.w]
         )
 
-        if self.moving and self.prev_t is not None and self.prev_R is not None:
+        if self.moving and self.prev_t is not None:
             delta_t = cur_t - self.prev_t
-            delta_R = cur_R * self.prev_R.inv()
             self.ik_t += delta_t
-            self.ik_R = delta_R * self.ik_R
 
         self.prev_t = cur_t
-        self.prev_R = cur_R
 
-        # Publish accumulated target
-        quat = self.ik_R.as_quat()  # x, y, z, w
+        # Publish differential translation target with absolute hand rotation
+        quat = cur_R.as_quat()  # x, y, z, w
         self.pose_stamped.header.frame_id = self.base_link
         self.pose_stamped.header.stamp = self.get_clock().now().to_msg()
         self.pose_stamped.pose.position.x = float(self.ik_t[0])
@@ -77,6 +72,19 @@ class ControllerNode(Node):
         self.pose_stamped.pose.orientation.z = float(quat[2])
         self.pose_stamped.pose.orientation.w = float(quat[3])
         self.pub.publish(self.pose_stamped)
+        # Also publish as a TF frame
+        tf_msg = TransformStamped()
+        tf_msg.header.frame_id = self.base_link
+        tf_msg.header.stamp = self.get_clock().now().to_msg()
+        tf_msg.child_frame_id = "ik_target_frame"
+        tf_msg.transform.translation.x = float(self.ik_t[0])
+        tf_msg.transform.translation.y = float(self.ik_t[1])
+        tf_msg.transform.translation.z = float(self.ik_t[2])
+        tf_msg.transform.rotation.x = float(quat[0])
+        tf_msg.transform.rotation.y = float(quat[1])
+        tf_msg.transform.rotation.z = float(quat[2])
+        tf_msg.transform.rotation.w = float(quat[3])
+        self.br.sendTransform(tf_msg)
 
 
 def main(args=None):
