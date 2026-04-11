@@ -286,6 +286,14 @@ def generate_launch_description():
             Node(
                 package=HAND_PUBLISHER_PKG,
                 namespace=HAND_PUBLISHER_PKG,
+                executable="mic_trigger_node",
+                name="mic_trigger",
+                parameters=common_params,
+                output=SCREEN,
+            ),
+            Node(
+                package=HAND_PUBLISHER_PKG,
+                namespace=HAND_PUBLISHER_PKG,
                 executable="joint_state_merger",
                 name="joint_state_merger",
                 parameters=common_params,
