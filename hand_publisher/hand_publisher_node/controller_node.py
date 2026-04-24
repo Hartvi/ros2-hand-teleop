@@ -35,7 +35,9 @@ class ControllerNode(Node):
         self.declare_parameter("track_rotation", False)
         self.track_rotation: bool = bool(self.get_parameter("track_rotation").value)  # type: ignore
         self.smooth_t = self.ik_t.copy()
-        self.smooth_R = R.identity()
+        self.smooth_R = R.from_rotvec(
+            [np.pi, 0, 0]
+        )  # Flip end-effector to point downwards
 
         self.create_subscription(Bool, "moving", self._moving_cb, 1)
 
