@@ -8,10 +8,36 @@ from pathlib import Path
 cwd = Path(__file__).parent.parent.resolve()
 
 
+def _clean_env():
+    """Strip conda/miniconda paths from environment to avoid EmPy v4 vs v3 conflicts with ROS 2."""
+    import os
+
+    env = dict(os.environ)
+    conda_prefix = env.get("CONDA_PREFIX", "")
+    if conda_prefix:
+        for var in ("PATH", "PYTHONPATH", "LD_LIBRARY_PATH", "CMAKE_PREFIX_PATH"):
+            if var in env:
+                env[var] = ":".join(
+                    p
+                    for p in env[var].split(":")
+                    if "miniconda" not in p and "anaconda" not in p
+                )
+        for k in list(env):
+            if k.startswith("CONDA_"):
+                del env[k]
+    return env
+
+
 def bash(cmd: str):
     print("RUNNING:", cmd)
     return subprocess.run(
-        ["bash", "-c", "source /opt/ros/${ROS_DISTRO}/setup.bash && " + cmd], cwd=cwd
+        [
+            "bash",
+            "-c",
+            "source /opt/ros/${ROS_DISTRO}/setup.bash && " + cmd,
+        ],
+        cwd=cwd,
+        env=_clean_env(),
     )
 
 
