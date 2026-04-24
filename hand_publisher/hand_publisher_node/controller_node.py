@@ -7,7 +7,7 @@ from std_msgs.msg import Bool
 from tf2_ros import TransformException, TransformBroadcaster  # type: ignore
 from tf2_ros.buffer import Buffer
 from tf2_ros.transform_listener import TransformListener
-from scipy.spatial.transform import Rotation as R
+from scipy.spatial.transform import Rotation as R, Slerp
 
 
 class ControllerNode(Node):
@@ -29,6 +29,11 @@ class ControllerNode(Node):
         self.prev_t: np.ndarray | None = None
         # Accumulated IK target pose (start at a safe default in front of the robot)
         self.ik_t = np.array([0.4, 0.0, 0.4])
+        # Low-pass filter: alpha=1.0 -> no filtering, 0.1 -> heavy smoothing
+        self.declare_parameter("lp_alpha", 0.2)
+        self.lp_alpha: float = float(self.get_parameter("lp_alpha").value)  # type: ignore
+        self.smooth_t = self.ik_t.copy()
+        self.smooth_R = R.identity()
 
         self.create_subscription(Bool, "moving", self._moving_cb, 1)
 
@@ -60,13 +65,17 @@ class ControllerNode(Node):
 
         self.prev_t = cur_t
 
-        # Publish differential translation target with absolute hand rotation
-        quat = cur_R.as_quat()  # x, y, z, w
+        # Low-pass filter: lerp translation, slerp rotation
+        a = self.lp_alpha
+        self.smooth_t = a * self.ik_t + (1.0 - a) * self.smooth_t
+        self.smooth_R = Slerp([0.0, 1.0], R.concatenate([self.smooth_R, cur_R]))([a])[0]
+        quat = self.smooth_R.as_quat()  # x, y, z, w
+
         self.pose_stamped.header.frame_id = self.base_link
         self.pose_stamped.header.stamp = self.get_clock().now().to_msg()
-        self.pose_stamped.pose.position.x = float(self.ik_t[0])
-        self.pose_stamped.pose.position.y = float(self.ik_t[1])
-        self.pose_stamped.pose.position.z = float(self.ik_t[2])
+        self.pose_stamped.pose.position.x = float(self.smooth_t[0])
+        self.pose_stamped.pose.position.y = float(self.smooth_t[1])
+        self.pose_stamped.pose.position.z = float(self.smooth_t[2])
         self.pose_stamped.pose.orientation.x = float(quat[0])
         self.pose_stamped.pose.orientation.y = float(quat[1])
         self.pose_stamped.pose.orientation.z = float(quat[2])
@@ -77,9 +86,9 @@ class ControllerNode(Node):
         tf_msg.header.frame_id = self.base_link
         tf_msg.header.stamp = self.get_clock().now().to_msg()
         tf_msg.child_frame_id = "ik_target_frame"
-        tf_msg.transform.translation.x = float(self.ik_t[0])
-        tf_msg.transform.translation.y = float(self.ik_t[1])
-        tf_msg.transform.translation.z = float(self.ik_t[2])
+        tf_msg.transform.translation.x = float(self.smooth_t[0])
+        tf_msg.transform.translation.y = float(self.smooth_t[1])
+        tf_msg.transform.translation.z = float(self.smooth_t[2])
         tf_msg.transform.rotation.x = float(quat[0])
         tf_msg.transform.rotation.y = float(quat[1])
         tf_msg.transform.rotation.z = float(quat[2])
