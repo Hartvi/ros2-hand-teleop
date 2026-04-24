@@ -33,7 +33,7 @@ class GripperPublisher(Node):
         self.declare_parameter("q_scale", 1.0)
         self.declare_parameter("q_max", 1.0)
         self.declare_parameter("closed_distance", 0.07)
-        self.declare_parameter("debounce_secs", 1.0)
+        self.declare_parameter("debounce_secs", 2.0)
 
         self.joint_names: list[str] = self.get_parameter("joint_names").value  # type: ignore
         self.joint_multipliers: list[float] = self.get_parameter(  # type: ignore
