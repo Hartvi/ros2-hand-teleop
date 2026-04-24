@@ -32,6 +32,8 @@ class ControllerNode(Node):
         # Low-pass filter: alpha=1.0 -> no filtering, 0.1 -> heavy smoothing
         self.declare_parameter("lp_alpha", 0.2)
         self.lp_alpha: float = float(self.get_parameter("lp_alpha").value)  # type: ignore
+        self.declare_parameter("track_rotation", False)
+        self.track_rotation: bool = bool(self.get_parameter("track_rotation").value)  # type: ignore
         self.smooth_t = self.ik_t.copy()
         self.smooth_R = R.identity()
 
@@ -68,7 +70,10 @@ class ControllerNode(Node):
         # Low-pass filter: lerp translation, slerp rotation
         a = self.lp_alpha
         self.smooth_t = a * self.ik_t + (1.0 - a) * self.smooth_t
-        self.smooth_R = Slerp([0.0, 1.0], R.concatenate([self.smooth_R, cur_R]))([a])[0]
+        if self.track_rotation:
+            self.smooth_R = Slerp([0.0, 1.0], R.concatenate([self.smooth_R, cur_R]))(
+                [a]
+            )[0]
         quat = self.smooth_R.as_quat()  # x, y, z, w
 
         self.pose_stamped.header.frame_id = self.base_link
