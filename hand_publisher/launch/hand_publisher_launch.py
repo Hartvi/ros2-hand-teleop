@@ -203,7 +203,7 @@ def generate_launch_description():
                         "-y",
                         "0",
                         "-z",
-                        "0.5",
+                        "0.0",
                     ],
                 )
             )
@@ -399,7 +399,7 @@ def generate_launch_description():
             ),
             DeclareLaunchArgument(
                 USE_GZ,
-                default_value="false",
+                default_value="true",
                 description="Whether to launch Gazebo Sim (new Gazebo)",
             ),
             DeclareLaunchArgument(
