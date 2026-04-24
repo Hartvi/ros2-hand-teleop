@@ -35,6 +35,7 @@ JOINT_MULTIPLIERS = "joint_multipliers"
 Q_SCALE = "q_scale"
 Q_MAX = "q_max"
 WORLD_STR = "world"
+DEFAULT_WORLD = str(Path(__file__).resolve().parents[2] / "my_world.sdf")
 
 
 def get_moveit_xml(robot_name: str, weld_to_world: bool = False):
@@ -409,8 +410,8 @@ def generate_launch_description():
             ),
             DeclareLaunchArgument(
                 WORLD,
-                default_value="",
-                description="Path to SDF world file (empty uses Gazebo default)",
+                default_value=DEFAULT_WORLD,
+                description="Path to SDF world file",
             ),
             OpaqueFunction(function=launch_setup),
         ]
