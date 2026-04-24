@@ -63,7 +63,7 @@ class HandFrameNode(Node):
         # TODO: set depending on the URDF that is present
         # x, y, z, w = R.from_euler("XYZ", [np.pi / 2, 0, np.pi], degrees=False).as_quat()
         x, y, z, w = R.from_euler(
-            "XYZ", [0, np.pi / 2, np.pi / 2], degrees=False
+            "XYZ", [0, np.pi / 4, np.pi / 2], degrees=False
         ).as_quat()
         msg.transform.translation.x = 0.0
         msg.transform.translation.y = 0.0
