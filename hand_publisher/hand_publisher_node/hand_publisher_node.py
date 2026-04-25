@@ -100,14 +100,19 @@ class HandPublisherNode(Node):
         def segment_dist(x: np.ndarray) -> np.floating:
             return np.mean(np.sqrt(np.sum(np.diff(x, axis=0) ** 2, axis=1)))
 
-        thumb_dists = segment_dist(xyz[0:5, 0:2])
-        index_dists = segment_dist(xyz[[0] + list(range(5, 9)), 0:2])
-        middle_dists = segment_dist(xyz[[0] + list(range(9, 13)), 0:2])
-        ring_dists = segment_dist(xyz[[0] + list(range(13, 17)), 0:2])
-        pinky_dists = segment_dist(xyz[[0] + list(range(17, 20)), 0:2])
-        mean_dist: float = float(
-            np.mean([thumb_dists, index_dists, middle_dists, ring_dists, pinky_dists])
-        )
+        # thumb_dists = segment_dist(xyz[0:5, 0:2])
+        # index_dists = segment_dist(xyz[[0] + list(range(5, 9)), 0:2])
+        # middle_dists = segment_dist(xyz[[0] + list(range(9, 13)), 0:2])
+        # ring_dists = segment_dist(xyz[[0] + list(range(13, 17)), 0:2])
+        # pinky_dists = segment_dist(xyz[[0] + list(range(17, 20)), 0:2])
+        # mean_dist: float = float(
+        #     np.mean([thumb_dists, index_dists, middle_dists, ring_dists, pinky_dists])
+        # )
+        d1 = segment_dist(xyz[[0, 5], 0:2])
+        d2 = segment_dist(xyz[[0, 9], 0:2])
+        d3 = segment_dist(xyz[[0, 13], 0:2])
+        d4 = segment_dist(xyz[[0, 17], 0:2])
+        mean_dist = float(np.mean([d1, d2, d3, d4])) / 3.0
         return (
             self.total_scale
             * (self.max_hand_size / (self.scale * mean_dist)) ** self.dist_exponent
