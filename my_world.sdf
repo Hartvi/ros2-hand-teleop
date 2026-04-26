@@ -100,7 +100,17 @@
       <static>false</static>
       <pose>0.4 0.2 0.525 0 0 0</pose>
       <link name="link">
-        <inertial><mass>0.05</mass></inertial>
+        <inertial>
+          <mass>0.05</mass>
+          <inertia>
+            <ixx>2.083333e-05</ixx>
+            <iyy>2.083333e-05</iyy>
+            <izz>2.083333e-05</izz>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyz>0</iyz>
+          </inertia>
+        </inertial>
         <collision name="col"><geometry><box><size>0.05 0.05 0.05</size></box></geometry></collision>
         <visual name="vis"><geometry><box><size>0.05 0.05 0.05</size></box></geometry>
           <material><ambient>1 0 0 1</ambient><diffuse>1 0 0 1</diffuse></material>
@@ -112,7 +122,17 @@
       <static>false</static>
       <pose>0.4 -0.2 0.525 0 0 0</pose>
       <link name="link">
-        <inertial><mass>0.05</mass></inertial>
+        <inertial> <!-- unnecessary -->
+          <mass>0.05</mass>
+          <inertia>
+            <ixx>2.083333e-05</ixx>
+            <iyy>2.083333e-05</iyy>
+            <izz>2.083333e-05</izz>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyz>0</iyz>
+          </inertia>
+        </inertial>
         <collision name="col"><geometry><box><size>0.05 0.05 0.05</size></box></geometry></collision>
         <visual name="vis"><geometry><box><size>0.05 0.05 0.05</size></box></geometry>
           <material><ambient>0 1 0 1</ambient><diffuse>0 1 0 1</diffuse></material>
@@ -124,7 +144,17 @@
       <static>false</static>
       <pose>0.5 0.0 0.525 0 0 0</pose>
       <link name="link">
-        <inertial><mass>0.05</mass></inertial>
+        <inertial>
+          <mass>0.05</mass>
+          <inertia>
+            <ixx>2.083333e-05</ixx>
+            <iyy>2.083333e-05</iyy>
+            <izz>2.083333e-05</izz>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyz>0</iyz>
+          </inertia>
+        </inertial>
         <collision name="col"><geometry><box><size>0.05 0.05 0.05</size></box></geometry></collision>
         <visual name="vis"><geometry><box><size>0.05 0.05 0.05</size></box></geometry>
           <material><ambient>0 0 1 1</ambient><diffuse>0 0 1 1</diffuse></material>
@@ -136,7 +166,17 @@
       <static>false</static>
       <pose>0.3 0.3 0.525 0 0 0</pose>
       <link name="link">
-        <inertial><mass>0.05</mass></inertial>
+        <inertial>
+          <mass>0.05</mass>
+          <inertia>
+            <ixx>2.083333e-05</ixx>
+            <iyy>2.083333e-05</iyy>
+            <izz>2.083333e-05</izz>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyz>0</iyz>
+          </inertia>
+        </inertial>
         <collision name="col"><geometry><box><size>0.05 0.05 0.05</size></box></geometry></collision>
         <visual name="vis"><geometry><box><size>0.05 0.05 0.05</size></box></geometry>
           <material><ambient>1 0 0 1</ambient><diffuse>1 0 0 1</diffuse></material>
@@ -148,7 +188,17 @@
       <static>false</static>
       <pose>0.3 -0.3 0.525 0 0 0</pose>
       <link name="link">
-        <inertial><mass>0.05</mass></inertial>
+        <inertial>
+          <mass>0.05</mass>
+          <inertia>
+            <ixx>2.083333e-05</ixx>
+            <iyy>2.083333e-05</iyy>
+            <izz>2.083333e-05</izz>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyz>0</iyz>
+          </inertia>
+        </inertial>
         <collision name="col"><geometry><box><size>0.05 0.05 0.05</size></box></geometry></collision>
         <visual name="vis"><geometry><box><size>0.05 0.05 0.05</size></box></geometry>
           <material><ambient>0 1 0 1</ambient><diffuse>0 1 0 1</diffuse></material>
@@ -160,7 +210,17 @@
       <static>false</static>
       <pose>0.5 0.15 0.525 0 0 0</pose>
       <link name="link">
-        <inertial><mass>0.05</mass></inertial>
+        <inertial>
+          <mass>0.05</mass>
+          <inertia>
+            <ixx>2.083333e-05</ixx>
+            <iyy>2.083333e-05</iyy>
+            <izz>2.083333e-05</izz>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyz>0</iyz>
+          </inertia>
+        </inertial>
         <collision name="col"><geometry><box><size>0.05 0.05 0.05</size></box></geometry></collision>
         <visual name="vis"><geometry><box><size>0.05 0.05 0.05</size></box></geometry>
           <material><ambient>0 0 1 1</ambient><diffuse>0 0 1 1</diffuse></material>
