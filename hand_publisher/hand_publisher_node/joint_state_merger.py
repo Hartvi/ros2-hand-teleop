@@ -41,12 +41,7 @@ class JointCommandMux(Node):
             Float64MultiArray, "/gripper_controller/commands", 10
         )
 
-        self.timer = self.create_timer(1.0 / 60.0, self.tick)  # 60 Hz is fine
-
-        # Optional: also publish desired joint_states for debugging (NOT /joint_states!)
-        self.pub_desired = self.create_publisher(
-            JointState, "/joint_states_desired", 10
-        )
+        self.timer = self.create_timer(1.0 / 20.0, self.tick)  # 20 Hz to reduce load
 
     def cb_arm(self, msg: JointState):
         self.arm = msg
@@ -88,13 +83,6 @@ class JointCommandMux(Node):
             msg_grip = Float64MultiArray()
             msg_grip.data = gripper_cmds
             self.pub_grip.publish(msg_grip)
-
-        # Optional debug desired joint states (separate topic)
-        desired = JointState()
-        desired.header.stamp = self.get_clock().now().to_msg()
-        desired.name = list(m.keys())
-        desired.position = [m[n] for n in desired.name]
-        self.pub_desired.publish(desired)
 
 
 def main():
