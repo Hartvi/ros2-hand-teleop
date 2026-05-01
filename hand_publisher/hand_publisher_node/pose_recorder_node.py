@@ -34,8 +34,8 @@ class PoseRecorderNode(Node):
             JointState, "/gripper_joint_states", self._gripper_cb, 1
         )
 
-        # Write at 10 Hz while recording
-        self.timer = self.create_timer(0.1, self._write_tick)
+        # Write at 5 Hz while recording
+        self.timer = self.create_timer(0.2, self._write_tick)
 
     def _recording_cb(self, msg: Bool):
         if msg.data and not self.recording:

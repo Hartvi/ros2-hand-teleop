@@ -2,7 +2,7 @@ import numpy as np
 from dataclasses import dataclass, field
 
 USE_DROID = False
-IMAGE_SIZE = (1280, 720)
+IMAGE_SIZE = (640, 360)
 CAMS = ()
 
 

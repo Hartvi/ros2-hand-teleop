@@ -50,7 +50,7 @@ class HandPointsNode(Node):
         )
 
         # Timer drives the capture + detection loop
-        timer_period: Seconds = 0.1
+        timer_period: Seconds = 0.2
         self.timer = self.create_timer(timer_period, self.timer_callback)
 
     def timer_callback(self):
