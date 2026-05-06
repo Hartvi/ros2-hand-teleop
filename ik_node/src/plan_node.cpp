@@ -5,6 +5,7 @@
 #include <std_srvs/srv/trigger.hpp>
 #include <geometry_srvs/srv/pose.hpp>
 #include <hand_publisher_interfaces/srv/add_object.hpp>
+#include <sensor_msgs/msg/joint_state.hpp>
 
 #include <moveit/move_group_interface/move_group_interface.hpp>
 #include <moveit/planning_scene_interface/planning_scene_interface.hpp>
@@ -42,6 +43,8 @@ public:
 
         RCLCPP_INFO(get_logger(), "Service ready: /plan_and_execute");
         RCLCPP_INFO(get_logger(), "Service ready: /add_object");
+
+        joint_state_pub_ = create_publisher<sensor_msgs::msg::JointState>("/main_joint_states", 10);
     }
 
 private:
@@ -99,7 +102,7 @@ private:
         collision_object.operation = collision_object.ADD;
 
         planning_scene_interface_->applyCollisionObject(collision_object);
-        
+
         response->success = true;
         response->message = "Object added successfully";
     }
@@ -128,6 +131,13 @@ private:
         {
             response->success = true;
             RCLCPP_INFO(get_logger(), "Plan executed successfully");
+
+            // Publish the final joint states to /main_joint_states
+            sensor_msgs::msg::JointState joint_state;
+            joint_state.header.stamp = now();
+            joint_state.name = plan.trajectory.joint_trajectory.joint_names;
+            joint_state.position = plan.trajectory.joint_trajectory.points.back().positions;
+            joint_state_pub_->publish(joint_state);
         }
         else
         {
@@ -138,7 +148,8 @@ private:
 
 private:
     std::unique_ptr<moveit::planning_interface::MoveGroupInterface>
-        move_group_interface_;
+        rclcpp::Publisher<sensor_msgs::msg::JointState>::SharedPtr joint_state_pub_;
+    move_group_interface_;
 
     std::unique_ptr<moveit::planning_interface::PlanningSceneInterface>
         planning_scene_interface_;
