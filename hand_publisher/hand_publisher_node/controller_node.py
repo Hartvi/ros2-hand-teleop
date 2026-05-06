@@ -1,5 +1,6 @@
 import numpy as np
 import rclpy
+from hand_publisher_interfaces.srv import SolveIK
 from rclpy.node import Node
 from geometry_msgs.msg import PoseStamped, TransformStamped
 from std_msgs.msg import Bool
@@ -13,15 +14,22 @@ from scipy.spatial.transform import Rotation as R, Slerp
 class ControllerNode(Node):
     def __init__(self):
         super().__init__("controller_node")
-        self.pub = self.create_publisher(PoseStamped, "/ik_target", 1)
+        self.target_pub = self.create_publisher(PoseStamped, "/ik_target", 1)
         self.tf_buffer = Buffer()
         self.tf_listener = TransformListener(self.tf_buffer, self)
         self.br = TransformBroadcaster(self)
         self.pose_stamped = PoseStamped()
         self.declare_parameter("base_link", "base_link")
+        self.declare_parameter("ik_service", "/solve_ik")
         self.base_link = (
             self.get_parameter("base_link").get_parameter_value().string_value
         )
+        self.ik_service_name = (
+            self.get_parameter("ik_service").get_parameter_value().string_value
+        )
+        self.ik_client = self.create_client(SolveIK, self.ik_service_name)
+        self.pending_ik_future = None
+        self.last_ik_service_warn_ns = 0
         self.timer = self.create_timer(0.1, self.lookup_transform)
 
         # Delta tracking state
@@ -41,6 +49,41 @@ class ControllerNode(Node):
         self.smooth_R = z_twist_R * point_down_R
 
         self.create_subscription(Bool, "moving", self._moving_cb, 1)
+
+    def _send_ik_request(self):
+        if self.pending_ik_future is not None and not self.pending_ik_future.done():
+            return
+
+        if not self.ik_client.wait_for_service(timeout_sec=0.0):
+            now_ns = self.get_clock().now().nanoseconds
+            if now_ns - self.last_ik_service_warn_ns >= 5_000_000_000:
+                self.get_logger().warning(
+                    f"Waiting for IK service {self.ik_service_name}"
+                )
+                self.last_ik_service_warn_ns = now_ns
+            return
+
+        request = SolveIK.Request()
+        request.target.header.frame_id = self.pose_stamped.header.frame_id
+        request.target.header.stamp = self.pose_stamped.header.stamp
+        request.target.pose.position.x = self.pose_stamped.pose.position.x
+        request.target.pose.position.y = self.pose_stamped.pose.position.y
+        request.target.pose.position.z = self.pose_stamped.pose.position.z
+        request.target.pose.orientation.x = self.pose_stamped.pose.orientation.x
+        request.target.pose.orientation.y = self.pose_stamped.pose.orientation.y
+        request.target.pose.orientation.z = self.pose_stamped.pose.orientation.z
+        request.target.pose.orientation.w = self.pose_stamped.pose.orientation.w
+
+        self.pending_ik_future = self.ik_client.call_async(request)
+        self.pending_ik_future.add_done_callback(self._handle_ik_response)
+
+    def _handle_ik_response(self, future):
+        self.pending_ik_future = None
+
+        try:
+            future.result()
+        except Exception as exc:
+            self.get_logger().warning(f"IK service call failed: {exc}")
 
     def _moving_cb(self, msg: Bool):
         if msg.data and not self.moving:
@@ -88,7 +131,8 @@ class ControllerNode(Node):
         self.pose_stamped.pose.orientation.y = float(quat[1])
         self.pose_stamped.pose.orientation.z = float(quat[2])
         self.pose_stamped.pose.orientation.w = float(quat[3])
-        self.pub.publish(self.pose_stamped)
+        self.target_pub.publish(self.pose_stamped)
+        self._send_ik_request()
         # Also publish as a TF frame
         tf_msg = TransformStamped()
         tf_msg.header.frame_id = self.base_link

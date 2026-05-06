@@ -4,11 +4,11 @@
 #include <chrono>
 #include <cmath>
 #include <algorithm>
+#include <functional>
 
 #include "rclcpp/rclcpp.hpp"
-#include "std_msgs/msg/string.hpp"
-#include "geometry_msgs/msg/pose_stamped.hpp"
 #include "sensor_msgs/msg/joint_state.hpp"
+#include "hand_publisher_interfaces/srv/solve_ik.hpp"
 
 #include <trac_ik/trac_ik.hpp>
 #include <kdl/chain.hpp>
@@ -18,18 +18,21 @@
 class TracIkNode : public rclcpp::Node
 {
 public:
+  using SolveIK = hand_publisher_interfaces::srv::SolveIK;
+
   TracIkNode() : Node("trac_ik_node")
   {
     // Parameters: set these to match your URDF link names.
     base_link_ = this->declare_parameter<std::string>("base_link", "base_link");
     tip_link_ = this->declare_parameter<std::string>("tip_link", "end_effector_link");
+    service_name_ = this->declare_parameter<std::string>("ik_service", "/solve_ik");
     this->declare_parameter<std::string>("robot_description", "");
 
     timeout_ = this->declare_parameter<double>("timeout", 0.01);
     eps_ = this->declare_parameter<double>("eps", 1e-5);
 
-    pose_sub_ = this->create_subscription<geometry_msgs::msg::PoseStamped>(
-        "/ik_target", 10, std::bind(&TracIkNode::on_target_pose, this, std::placeholders::_1));
+    ik_service_ = this->create_service<SolveIK>(
+        service_name_, std::bind(&TracIkNode::on_solve_ik, this, std::placeholders::_1, std::placeholders::_2));
 
     sol_pub_ = this->create_publisher<sensor_msgs::msg::JointState>("/main_joint_states", 10);
 
@@ -137,18 +140,20 @@ private:
                 chain_.getNrOfJoints(), base_link_.c_str(), tip_link_.c_str());
   }
 
-  void on_target_pose(const geometry_msgs::msg::PoseStamped::SharedPtr msg)
+  void on_solve_ik(const std::shared_ptr<SolveIK::Request> request,
+                   std::shared_ptr<SolveIK::Response> response)
   {
     if (!ik_)
     {
-      RCLCPP_WARN_THROTTLE(get_logger(), *get_clock(), 2000,
-                           "No TRAC-IK solver yet (still waiting for /robot_description).");
+      response->success = false;
+      response->message = "No TRAC-IK solver yet (still waiting for /robot_description).";
+      RCLCPP_WARN(get_logger(), "%s", response->message.c_str());
       return;
     }
 
     // Convert PoseStamped -> KDL::Frame
-    const auto &p = msg->pose.position;
-    const auto &q = msg->pose.orientation;
+    const auto &p = request->target.pose.position;
+    const auto &q = request->target.pose.orientation;
 
     KDL::Rotation R = KDL::Rotation::Quaternion(q.x, q.y, q.z, q.w);
     KDL::Vector T(p.x, p.y, p.z);
@@ -160,7 +165,9 @@ private:
 
     if (rc < 0)
     {
-      RCLCPP_WARN(get_logger(), "IK failed (rc=%d). Try different pose/seed/timeout.", rc);
+      response->success = false;
+      response->message = "IK failed. Try different pose/seed/timeout.";
+      RCLCPP_WARN(get_logger(), "IK failed (rc=%d).", rc);
       return;
     }
 
@@ -184,6 +191,10 @@ private:
       }
       have_last_cmd_ = true;
       sol_pub_->publish(out);
+      response->success = true;
+      response->message = "IK solution computed.";
+      response->joint_names = out.name;
+      response->joint_positions = out.position;
       return;
     }
 
@@ -213,6 +224,10 @@ private:
     }
 
     sol_pub_->publish(out);
+    response->success = true;
+    response->message = "IK solution computed.";
+    response->joint_names = out.name;
+    response->joint_positions = out.position;
   }
 
   static double shortest_angular_delta(double from, double to)
@@ -241,10 +256,11 @@ private:
 private:
   std::string base_link_;
   std::string tip_link_;
+  std::string service_name_;
   double timeout_{0.01};
   double eps_{1e-5};
 
-  rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr pose_sub_;
+  rclcpp::Service<SolveIK>::SharedPtr ik_service_;
   rclcpp::Publisher<sensor_msgs::msg::JointState>::SharedPtr sol_pub_;
 
   std::unique_ptr<TRAC_IK::TRAC_IK> ik_;

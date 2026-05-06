@@ -11,13 +11,14 @@ find_package(rclcpp REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
+find_package(hand_publisher_interfaces REQUIRED)
 
 find_package(trac_ik_lib REQUIRED)
 find_package(orocos_kdl REQUIRED)
 
 add_executable(trac_ik_node src/trac_ik_node.cpp)
 ament_target_dependencies(trac_ik_node
-  rclcpp std_msgs geometry_msgs sensor_msgs
+  rclcpp std_msgs geometry_msgs sensor_msgs hand_publisher_interfaces
   trac_ik_lib orocos_kdl
 )
 

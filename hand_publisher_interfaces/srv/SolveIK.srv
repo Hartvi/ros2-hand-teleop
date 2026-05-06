@@ -1,0 +1,6 @@
+geometry_msgs/PoseStamped target
+---
+bool success
+string message
+string[] joint_names
+float64[] joint_positions
