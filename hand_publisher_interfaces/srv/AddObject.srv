@@ -1,0 +1,7 @@
+string name
+string type # "cube" or "cylinder"
+float64[] dimensions # [x, y, z] for cube, [radius, height] for cylinder
+geometry_msgs/Pose pose
+---
+bool success
+string message
