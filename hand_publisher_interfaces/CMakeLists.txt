@@ -15,6 +15,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/HandPoints.msg"
   "srv/SolveIK.srv"
   "srv/AddObject.srv"
+  "srv/PlanPose.srv"
   DEPENDENCIES geometry_msgs
 )
 
