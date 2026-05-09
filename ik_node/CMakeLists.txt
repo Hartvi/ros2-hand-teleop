@@ -11,6 +11,9 @@ find_package(rclcpp REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
+find_package(moveit_msgs REQUIRED)
+find_package(moveit_ros_planning_interface REQUIRED)
+find_package(shape_msgs REQUIRED)
 find_package(hand_publisher_interfaces REQUIRED)
 
 find_package(trac_ik_lib REQUIRED)
@@ -22,8 +25,15 @@ ament_target_dependencies(trac_ik_node
   trac_ik_lib orocos_kdl
 )
 
+add_executable(plan_node src/plan_node.cpp)
+ament_target_dependencies(plan_node
+  rclcpp geometry_msgs sensor_msgs hand_publisher_interfaces
+  moveit_msgs moveit_ros_planning_interface shape_msgs
+)
+
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
+  find_package(launch_testing_ament_cmake REQUIRED)
   # the following line skips the linter which checks for copyrights
   # comment the line when a copyright and license is added to all source files
   set(ament_cmake_copyright_FOUND TRUE)
@@ -32,8 +42,14 @@ if(BUILD_TESTING)
   # a copyright and license is added to all source files
   set(ament_cmake_cpplint_FOUND TRUE)
   ament_lint_auto_find_test_dependencies()
+
+  add_launch_test(
+    ${CMAKE_CURRENT_SOURCE_DIR}/../hand_publisher/launch/moveit_control.launch.py
+    TARGET moveit_control_launch_test
+    TIMEOUT 180
+  )
 endif()
 
-install(TARGETS trac_ik_node DESTINATION lib/${PROJECT_NAME})
+install(TARGETS trac_ik_node plan_node DESTINATION lib/${PROJECT_NAME})
 
 ament_package()
