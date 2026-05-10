@@ -4,7 +4,6 @@
 ### TODOs
 - save data
 - create data set scene
-- automatically detect finger & hand points to align with urdf gripper/ee pose
 
 
 ### DONE
@@ -17,4 +16,5 @@
 - get position and dir from hand points
 - visualize robotics arm URDFs
 - inverse kinematics on robot arm from pose or just position
+- automatically detect finger & hand points to align with urdf gripper/ee pose
 

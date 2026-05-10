@@ -53,6 +53,9 @@ private:
         planning_scene_interface_ =
             std::make_unique<moveit::planning_interface::PlanningSceneInterface>();
 
+        /*
+        ros2 service call /plan_and_execute hand_publisher_interfaces/srv/PlanPose "{target: {header: {frame_id: 'world'}, pose: {position: {x: 0.3, y: 0.2, z: 0.5}, orientation: {w: 1.0}}}}"
+        */
         service_ = create_service<hand_publisher_interfaces::srv::PlanPose>(
             "plan_and_execute",
             std::bind(

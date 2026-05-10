@@ -1,6 +1,7 @@
 import os
 import time
 import unittest
+import pytest
 
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument
@@ -16,28 +17,36 @@ except ImportError:
     launch_testing = None
 
 
+# Helper function to configure MoveIt 2.
+# It loads URDF, SRDF, planning pipelines, and trajectory execution settings.
 def _build_moveit_config():
     return (
         MoveItConfigsBuilder("moveit_resources_panda")
+        # Load the robot description from URDF/XACRO.
         .robot_description(
             file_path="config/panda.urdf.xacro",
             mappings={
+                # maps the hardware interface type (mock vs real)
                 "ros2_control_hardware_type": LaunchConfiguration(
                     "ros2_control_hardware_type"
                 )
             },
         )
+        # Load Semantic Robot Description (SRDF) for planning groups and poses.
         .robot_description_semantic(file_path="config/panda.srdf")
+        # Publish the robot description so other nodes can use the model.
         .planning_scene_monitor(
             publish_robot_description=True,
             publish_robot_description_semantic=True,
         )
+        # Define the controllers used for executing planned trajectories.
         .trajectory_execution(file_path="config/gripper_moveit_controllers.yaml")
-        .planning_pipelines(pipelines=["ompl"])
-        .to_moveit_configs()
+        # Use OMPL as the default motion planning library.
+        .planning_pipelines(pipelines=["ompl"]).to_moveit_configs()
     )
 
 
+# Construct the launch entities (nodes and arguments) for the MoveIt stack.
 def _build_launch_entities():
     moveit_config = _build_moveit_config()
     ros2_controllers_path = os.path.join(
@@ -48,16 +57,19 @@ def _build_launch_entities():
     )
 
     declared_arguments = [
+        # Selects the hardware backend: 'mock_components' for simulation, 'panda' for real hardware.
         DeclareLaunchArgument(
             "ros2_control_hardware_type",
             default_value="mock_components",
             description="ros2_control hardware interface used for Panda MoveIt bring-up",
         ),
+        # Sets the default MoveIt planning group (e.g., panda_arm).
         DeclareLaunchArgument(
             "move_group_name",
             default_value="panda_arm",
             description="MoveIt planning group used by the planning service",
         ),
+        # Toggles the RViz visualization window.
         DeclareLaunchArgument(
             "use_rviz",
             default_value="false",
@@ -65,6 +77,7 @@ def _build_launch_entities():
         ),
     ]
 
+    # The move_group node is the main executor for MoveIt planning and execution.
     move_group_node = Node(
         package="moveit_ros_move_group",
         executable="move_group",
@@ -73,6 +86,7 @@ def _build_launch_entities():
         arguments=["--ros-args", "--log-level", "info"],
     )
 
+    # Publishes the 3D poses (TF) of the robot links based on joint states and URDF.
     robot_state_publisher_node = Node(
         package="robot_state_publisher",
         executable="robot_state_publisher",
@@ -81,6 +95,7 @@ def _build_launch_entities():
         parameters=[moveit_config.robot_description],
     )
 
+    # Fixes the robot base (panda_link0) to the map/world coordinate frame.
     static_tf_node = Node(
         package="tf2_ros",
         executable="static_transform_publisher",
@@ -89,6 +104,7 @@ def _build_launch_entities():
         arguments=["0", "0", "0", "0", "0", "0", "world", "panda_link0"],
     )
 
+    # The controller manager handles the lifecycle of ros2_control controllers.
     ros2_control_node = Node(
         package="controller_manager",
         executable="ros2_control_node",
@@ -97,6 +113,7 @@ def _build_launch_entities():
         remappings=[("/controller_manager/robot_description", "/robot_description")],
     )
 
+    # Publishes current joint angles to the /joint_states topic.
     joint_state_broadcaster_spawner = Node(
         package="controller_manager",
         executable="spawner",
@@ -108,6 +125,7 @@ def _build_launch_entities():
         ],
     )
 
+    # Controller for the 7-DOF Panda arm.
     panda_arm_controller_spawner = Node(
         package="controller_manager",
         executable="spawner",
@@ -115,6 +133,7 @@ def _build_launch_entities():
         arguments=["panda_arm_controller", "-c", "/controller_manager"],
     )
 
+    # Controller for the Panda gripper fingers.
     panda_hand_controller_spawner = Node(
         package="controller_manager",
         executable="spawner",
@@ -122,6 +141,7 @@ def _build_launch_entities():
         arguments=["panda_hand_controller", "-c", "/controller_manager"],
     )
 
+    # Provides the custom /plan_and_execute service for the teleoperation system.
     plan_node = Node(
         package="ik_node",
         executable="plan_node",
@@ -133,6 +153,7 @@ def _build_launch_entities():
         ],
     )
 
+    # RViz2 visualization tool, configured with MoveIt and robot model parameters.
     rviz_node = Node(
         package="rviz2",
         executable="rviz2",
@@ -169,6 +190,7 @@ def generate_launch_description():
     return LaunchDescription(entities)
 
 
+@pytest.mark.launch_test
 def generate_test_description():
     if launch_testing is None:
         raise RuntimeError("launch_testing is required to run this launch test")
@@ -183,115 +205,90 @@ if launch_testing is not None:
     from sensor_msgs.msg import JointState
     from tf2_ros import Buffer, TransformException, TransformListener
 
-    class TestMoveItControlLaunch(unittest.TestCase):
-        @classmethod
-        def setUpClass(cls):
-            rclpy.init()
 
-        @classmethod
-        def tearDownClass(cls):
-            rclpy.shutdown()
+class TestPlanAndExecuteService(unittest.TestCase):
 
-        def setUp(self):
-            self.node = rclpy.create_node("moveit_control_launch_test")
+    def test_plan_and_execute_service(self, proc_output, plan_node):
+        """Ensure /plan_and_execute can plan and execute."""
+        z_offset_list = [0.02, 0.0]
 
-        def tearDown(self):
-            self.node.destroy_node()
+        rclpy.init()
+        node = rclpy.create_node("moveit_control_launch_test")
 
-        def _wait_for_joint_states(self, timeout_sec):
-            messages = []
-            subscription = self.node.create_subscription(
-                JointState, "/joint_states", messages.append, 10
-            )
-
-            try:
-                deadline = time.time() + timeout_sec
-                while time.time() < deadline:
-                    rclpy.spin_once(self.node, timeout_sec=0.1)
-                    if messages:
-                        return messages[-1]
-            finally:
-                self.node.destroy_subscription(subscription)
-
-            self.fail("Timed out waiting for /joint_states from the Panda controllers")
-
-        def _wait_for_transform(
-            self, tf_buffer, target_frame, source_frame, timeout_sec
-        ):
-            deadline = time.time() + timeout_sec
-            while time.time() < deadline:
-                try:
-                    return tf_buffer.lookup_transform(
-                        target_frame,
-                        source_frame,
-                        rclpy.time.Time(),
-                    )
-                except TransformException:
-                    rclpy.spin_once(self.node, timeout_sec=0.1)
-
-            self.fail(
-                f"Timed out waiting for transform from {target_frame} to {source_frame}"
-            )
-
-        def _call_plan_service(self, client, request, timeout_sec):
-            future = client.call_async(request)
-            rclpy.spin_until_future_complete(self.node, future, timeout_sec=timeout_sec)
-            self.assertTrue(future.done(), "Timed out waiting for /plan_and_execute")
-            response = future.result()
-            self.assertIsNotNone(response, "PlanPose returned no response")
-            return response
-
-        def _make_request(self, transform, z_offset):
-            request = PlanPose.Request()
-            request.target.header.frame_id = "world"
-            request.target.header.stamp = self.node.get_clock().now().to_msg()
-            request.target.pose.position.x = transform.transform.translation.x
-            request.target.pose.position.y = transform.transform.translation.y
-            request.target.pose.position.z = (
-                transform.transform.translation.z + z_offset
-            )
-            request.target.pose.orientation.x = transform.transform.rotation.x
-            request.target.pose.orientation.y = transform.transform.rotation.y
-            request.target.pose.orientation.z = transform.transform.rotation.z
-            request.target.pose.orientation.w = transform.transform.rotation.w
-            return request
-
-        def test_plan_and_execute_service(self, proc_output, plan_node):
+        try:
             proc_output.assertWaitFor(
                 "MoveIt ready for planning group 'panda_arm'",
                 timeout=120,
                 process=plan_node,
             )
 
-            client = self.node.create_client(PlanPose, "/plan_and_execute")
-            self.assertTrue(
-                client.wait_for_service(timeout_sec=60.0),
-                "Timed out waiting for /plan_and_execute",
+            # 2. Setup service client
+            client = node.create_client(PlanPose, "/plan_and_execute")
+            if not client.wait_for_service(timeout_sec=60.0):
+                raise AssertionError("Timed out waiting for /plan_and_execute")
+
+            # 3. Wait for joint states
+            messages = []
+            sub = node.create_subscription(
+                JointState, "/joint_states", messages.append, 10
             )
 
-            self._wait_for_joint_states(timeout_sec=60.0)
-            tf_buffer = Buffer()
-            TransformListener(tf_buffer, self.node, spin_thread=False)
-
-            last_message = "No response received"
             deadline = time.time() + 60.0
+            while time.time() < deadline and not messages:
+                rclpy.spin_once(node, timeout_sec=0.1)
 
-            while time.time() < deadline:
-                transform = self._wait_for_transform(
-                    tf_buffer,
-                    "world",
-                    "panda_link8",
-                    timeout_sec=10.0,
-                )
+            if not messages:
+                raise AssertionError("Timed out waiting for /joint_states")
+            node.destroy_subscription(sub)
 
-                for z_offset in (0.02, 0.0):
-                    response = self._call_plan_service(
-                        client,
-                        self._make_request(transform, z_offset),
-                        timeout_sec=30.0,
+            # 4. TF setup
+            tf_buffer = Buffer()
+            TransformListener(tf_buffer, node, spin_thread=False)
+
+            # 5. Execute Plan
+            last_message = "No response received"
+            test_deadline = time.time() + 60.0
+
+            while time.time() < test_deadline:
+                # Wait for transform
+                transform = None
+                tf_deadline = time.time() + 10.0
+                while time.time() < tf_deadline:
+                    try:
+                        transform = tf_buffer.lookup_transform(
+                            "world", "panda_link8", rclpy.time.Time()
+                        )
+                        break
+                    except TransformException:
+                        rclpy.spin_once(node, timeout_sec=0.1)
+
+                if not transform:
+                    raise AssertionError(
+                        "Timed out waiting for transform world -> panda_link8"
                     )
-                    last_message = response.message
-                    if response.success:
+
+                for z_offset in z_offset_list:
+                    request = PlanPose.Request()
+                    request.target.header.frame_id = "world"
+                    request.target.header.stamp = node.get_clock().now().to_msg()
+                    request.target.pose.position.x = transform.transform.translation.x
+                    request.target.pose.position.y = transform.transform.translation.y
+                    request.target.pose.position.z = (
+                        transform.transform.translation.z + z_offset
+                    )
+                    request.target.pose.orientation.x = transform.transform.rotation.x
+                    request.target.pose.orientation.y = transform.transform.rotation.y
+                    request.target.pose.orientation.z = transform.transform.rotation.z
+                    request.target.pose.orientation.w = transform.transform.rotation.w
+
+                    future = client.call_async(request)
+                    rclpy.spin_until_future_complete(node, future, timeout_sec=30.0)
+
+                    if not future.done():
+                        continue
+
+                    response = future.result()
+                    if response and response.success:
                         proc_output.assertWaitFor(
                             "Plan executed successfully",
                             timeout=30,
@@ -299,6 +296,13 @@ if launch_testing is not None:
                         )
                         return
 
+                    if response:
+                        last_message = response.message
+
                 time.sleep(1.0)
 
-            self.fail(f"/plan_and_execute never succeeded: {last_message}")
+            raise AssertionError(f"/plan_and_execute never succeeded: {last_message}")
+
+        finally:
+            node.destroy_node()
+            rclpy.shutdown()
