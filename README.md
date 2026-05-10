@@ -1,10 +1,20 @@
 # ROS2 hand teleoperation from webcam
-![Demo](media/hand_follow_viz.gif)
 
+## New video
+https://www.youtube.com/watch?v=Nm4BNguZxqY
 
-![Hand alignment](media/kinova_gripper.gif)
+### Project goal
+- Enable teleoperation of robotic arm to collect custom training data for a VLA model
+- At the same time the model will be testable on the same framework that collects the data
 
-TL;DR: Webcam => MediaPipe landmarks => 3D hand pose => TF => IK => robot joint states in RViz.
+### What's done
+- Sound-level enabled teleoperation & transfer to gazebo simulation
+- Robot state recording for custom data generation
+
+### What's missing
+- Parsing collected data into lerobot or other training data format
+- Finetuning & testing the model on the framework
+
 
 ## What's going on:
 - `hand_image_node` - use opencv to capture webcam footage in 1280x720
@@ -79,4 +89,5 @@ Requirements:
 - requirements.txt
 
 run with gazebo UI:
-- `./utils.py clean build run use_gz:=true gz_gui:=true world:=/home/hartvi/ros_hand_teleop/src/my_world.sdf robot:=panda`
+- `mkdir ros_teleop && mv ros2-hand-teleop src && mv src ros_teleop/ && cd ros_teleop/src`
+- `./utils.py clean build run use_gz:=true gz_gui:=true world:=src/my_world.sdf robot:=panda`
