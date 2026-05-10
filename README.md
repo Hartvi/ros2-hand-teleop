@@ -1,4 +1,4 @@
-# ROS2 hand teleoperation from webcam
+# ROS2 hand teleoperation & data collection pipeline
 
 ## New video
 https://www.youtube.com/watch?v=Nm4BNguZxqY
