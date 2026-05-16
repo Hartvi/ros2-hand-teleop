@@ -4,7 +4,6 @@ import sys
 
 from pathlib import Path
 
-
 cwd = Path(__file__).parent.parent.resolve()
 
 
@@ -50,9 +49,26 @@ def stop_stale_runtime_processes():
         "parameter_bridge",
         "ros_gz_sim create",
         "rviz2",
+        "trac_ik_node",
+        "hand_points_node",
+        "hand_publisher_node",
+        "hand_frame_node",
+        "controller_node",
+        "joint_state_merger",
+        "gripper_publisher",
+        "mic_trigger_node",
+        "pose_recorder_node",
+        "controller_manager",
+        "spawner",
+        "robot_state_publisher",
+        "static_transform_publisher",
     ]
     for pattern in patterns:
         subprocess.run(["pkill", "-f", pattern], cwd=cwd)
+
+    # Some nodes can survive SIGTERM if detached; force-stop leftovers.
+    for pattern in patterns:
+        subprocess.run(["pkill", "-9", "-f", pattern], cwd=cwd)
 
 
 args = sys.argv[1:]
