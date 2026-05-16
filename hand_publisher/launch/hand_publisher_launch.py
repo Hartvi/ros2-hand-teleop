@@ -6,7 +6,7 @@ from launch_ros.actions import Node
 from launch.actions import SetEnvironmentVariable
 from ament_index_python.packages import get_package_share_directory
 from pathlib import Path
-from hand_publisher_node.utils import inject_gz_ros2_control
+from hand_publisher_node.utils import inject_gz_ros2_control, inject_gz_camera
 import xacro
 import os
 
@@ -36,6 +36,8 @@ Q_SCALE = "q_scale"
 Q_MAX = "q_max"
 WORLD_STR = "world"
 DEFAULT_WORLD = str(Path(__file__).resolve().parents[2] / "my_world.sdf")
+EE_CAMERA_IMAGE_TOPIC = "/panda/ee_camera/image_raw"
+EE_CAMERA_INFO_TOPIC = "/panda/ee_camera/camera_info"
 
 
 def get_moveit_xml(robot_name: str, weld_to_world: bool = False):
@@ -143,9 +145,17 @@ def generate_launch_description():
         elif cfg.get(URDF_XML):
             urdf_xml = cfg[URDF_XML]()  # lazy eval
 
-            urdf_xml = inject_gz_ros2_control(
-                urdf_xml, robot_name, str(controllers_yaml)
-            )
+            if use_gz:
+                urdf_xml = inject_gz_ros2_control(
+                    urdf_xml, robot_name, str(controllers_yaml)
+                )
+                urdf_xml = inject_gz_camera(
+                    urdf_xml,
+                    parent_link="panda_hand",
+                    sensor_name="ee_camera",
+                    image_topic=EE_CAMERA_IMAGE_TOPIC,
+                    camera_info_topic=EE_CAMERA_INFO_TOPIC,
+                )
 
         else:
             raise RuntimeError(
@@ -183,6 +193,19 @@ def generate_launch_description():
                     name="gz_clock_bridge",
                     output=SCREEN,
                     arguments=["/clock@rosgraph_msgs/msg/Clock[gz.msgs.Clock"],
+                )
+            )
+
+            nodes.append(
+                Node(
+                    package="ros_gz_bridge",
+                    executable="parameter_bridge",
+                    name="gz_ee_camera_bridge",
+                    output=SCREEN,
+                    arguments=[
+                        f"{EE_CAMERA_IMAGE_TOPIC}@sensor_msgs/msg/Image[gz.msgs.Image",
+                        f"{EE_CAMERA_INFO_TOPIC}@sensor_msgs/msg/CameraInfo[gz.msgs.CameraInfo",
+                    ],
                 )
             )
 

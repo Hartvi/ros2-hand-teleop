@@ -27,34 +27,37 @@ def init_caps():
     global CAP_IDS, DROID_IDS, USE_DROID, PUB_METADATA, SUB_METADATA, NUM_SRCS, SRCS, CAMS
     import cv2
     import threading
+    from pathlib import Path
 
     def get_caps_ids() -> list[int]:
         ids = []
-        idx = 0
         max_probe = 10  # don't probe beyond /dev/video9
-        while idx < max_probe:
+        candidates = []
+        for idx in range(max_probe):
+            if Path(f"/dev/video{idx}").exists():
+                candidates.append(idx)
+
+        for idx in candidates:
             cap_ready = False
 
             def try_open_camera():
                 nonlocal cap_ready
                 try:
                     cap = cv2.VideoCapture(idx)
-                    # Try to read with a very low timeout
-                    cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
-                    ok, _ = cap.read()
+                    cap_ready = cap.isOpened()
                     cap.release()
-                    cap_ready = ok
                 except Exception:
                     cap_ready = False
 
-            # Probe with timeout to avoid hanging on locked cameras
+            # Probe with timeout to avoid hanging on locked cameras.
             thread = threading.Thread(target=try_open_camera, daemon=True)
             thread.start()
-            thread.join(timeout=2.0)  # 2 second timeout per camera
+            thread.join(timeout=1.0)
 
             if cap_ready:
                 ids.append(idx)
-            idx += 1
+                # One source is sufficient for current hand tracking path.
+                break
 
         if ids:
             print(f"Detected cameras at indices: {ids}")
