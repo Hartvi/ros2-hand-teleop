@@ -38,6 +38,8 @@ WORLD_STR = "world"
 DEFAULT_WORLD = str(Path(__file__).resolve().parents[2] / "my_world.sdf")
 EE_CAMERA_IMAGE_TOPIC = "/panda/ee_camera/image_raw"
 EE_CAMERA_INFO_TOPIC = "/panda/ee_camera/camera_info"
+BASE_CAMERA_IMAGE_TOPIC = "/panda/base_camera/image_raw"
+BASE_CAMERA_INFO_TOPIC = "/panda/base_camera/camera_info"
 
 
 def get_moveit_xml(robot_name: str, weld_to_world: bool = False):
@@ -156,6 +158,14 @@ def generate_launch_description():
                     image_topic=EE_CAMERA_IMAGE_TOPIC,
                     camera_info_topic=EE_CAMERA_INFO_TOPIC,
                 )
+                urdf_xml = inject_gz_camera(
+                    urdf_xml,
+                    parent_link=cfg[BASE_LINK],
+                    sensor_name="base_camera",
+                    image_topic=BASE_CAMERA_IMAGE_TOPIC,
+                    camera_info_topic=BASE_CAMERA_INFO_TOPIC,
+                    pose="0.5 -1.5 1.5 0 0.564 1.249",
+                )
 
         else:
             raise RuntimeError(
@@ -205,6 +215,19 @@ def generate_launch_description():
                     arguments=[
                         f"{EE_CAMERA_IMAGE_TOPIC}@sensor_msgs/msg/Image[gz.msgs.Image",
                         f"{EE_CAMERA_INFO_TOPIC}@sensor_msgs/msg/CameraInfo[gz.msgs.CameraInfo",
+                    ],
+                )
+            )
+
+            nodes.append(
+                Node(
+                    package="ros_gz_bridge",
+                    executable="parameter_bridge",
+                    name="gz_base_camera_bridge",
+                    output=SCREEN,
+                    arguments=[
+                        f"{BASE_CAMERA_IMAGE_TOPIC}@sensor_msgs/msg/Image[gz.msgs.Image",
+                        f"{BASE_CAMERA_INFO_TOPIC}@sensor_msgs/msg/CameraInfo[gz.msgs.CameraInfo",
                     ],
                 )
             )
