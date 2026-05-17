@@ -10,7 +10,7 @@ The pipeline works by capturing webcam images, detecting hand landmarks with Med
 The system already supports:
 - Real-time hand teleoperation at roughly 10 fps
 - Transfer into Gazebo simulation
-- Robot **end effector pose** & **camera *recording** for dataset generation
+- Robot **end effector pose** & **camera recording** for dataset generation
 - Multiple robot configurations (e.g. Kinova and Panda)
 - Visualization through RViz2
 - Sound-level enabled teleoperation interactions
