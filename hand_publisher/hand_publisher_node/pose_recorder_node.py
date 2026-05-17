@@ -47,12 +47,14 @@ class PoseRecorderNode(Node):
         self.latest_ee_image: Image | None = None
         self.latest_base_image: Image | None = None
         self.main_joint_names: list[str] = []
-        self.images_dir: Path | None = None
+        self.episode_dir: Path | None = None
         self.image_index: int = 0
 
         self.create_subscription(Bool, "recording", self._recording_cb, 1)
         self.create_subscription(PoseStamped, "/ik_target", self._pose_cb, 1)
-        self.create_subscription(JointState, "/main_joint_states", self._main_joints_cb, 1)
+        self.create_subscription(
+            JointState, "/main_joint_states", self._main_joints_cb, 1
+        )
         self.create_subscription(
             JointState, "/gripper_joint_states", self._gripper_cb, 1
         )
@@ -89,7 +91,7 @@ class PoseRecorderNode(Node):
         self.latest_base_image = msg
 
     def _write_image(self, image: Image | None, prefix: str) -> str:
-        if image is None or self.images_dir is None:
+        if image is None or self.episode_dir is None:
             return ""
 
         image_np = np.frombuffer(image.data, dtype=np.uint8).reshape(
@@ -98,7 +100,7 @@ class PoseRecorderNode(Node):
         image_bgr = cv2.cvtColor(image_np, cv2.COLOR_RGB2BGR)
         image_filename = f"{prefix}_{self.image_index:06d}.jpg"
         cv2.imwrite(
-            str(self.images_dir / image_filename),
+            str(self.episode_dir / image_filename),
             image_bgr,
             [cv2.IMWRITE_JPEG_QUALITY, 90],
         )
@@ -130,12 +132,12 @@ class PoseRecorderNode(Node):
 
     def _start_recording(self):
         stamp = time.strftime("%Y%m%d_%H%M%S")
-        path = self.output_dir / f"episode_{stamp}.csv"
+        self.episode_dir = self.output_dir / f"episode_{stamp}"
+        self.episode_dir.mkdir(parents=True, exist_ok=True)
+        path = self.episode_dir / "episode.csv"
         self.csv_file = open(path, "w", newline="")
         self.csv_writer = None
         self.main_joint_names = []
-        self.images_dir = self.output_dir / f"episode_{stamp}_images"
-        self.images_dir.mkdir(parents=True, exist_ok=True)
         self.image_index = 0
         self.get_logger().info(f"Recording started: {path}")
 
@@ -145,7 +147,7 @@ class PoseRecorderNode(Node):
             self.csv_file.close()
             self.csv_file = None
             self.csv_writer = None
-            self.images_dir = None
+            self.episode_dir = None
             self.image_index = 0
             self.get_logger().info(f"Recording stopped: {path}")
 
