@@ -80,6 +80,7 @@ def inject_gz_camera(
     sensor_name: str = "ee_camera",
     image_topic: str = "/panda/ee_camera/image_raw",
     camera_info_topic: str = "/panda/ee_camera/camera_info",
+    pose: str = "-0.06 0.0 0.03 0 -1.571 0",
 ) -> str:
     camera_block = f"""
 <gazebo reference=\"{parent_link}\">
@@ -87,7 +88,7 @@ def inject_gz_camera(
         <always_on>true</always_on>
         <visualize>false</visualize>
         <update_rate>30</update_rate>
-        <pose>-0.06 0.0 0.03 0 -1.571 0</pose>
+        <pose>{pose}</pose>
         <camera>
             <camera_info_topic>{camera_info_topic}</camera_info_topic>
             <horizontal_fov>1.089</horizontal_fov>

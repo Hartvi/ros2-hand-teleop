@@ -24,7 +24,8 @@ class PoseRecorderNode(Node):
         "qz",
         "qw",
         "gripper_pos",
-        "image_file",
+        "ee_image_file",
+        "base_image_file",
     ]
 
     def __init__(self):
@@ -43,7 +44,8 @@ class PoseRecorderNode(Node):
         self.latest_pose: PoseStamped | None = None
         self.latest_main_joints: JointState | None = None
         self.latest_gripper: JointState | None = None
-        self.latest_image: Image | None = None
+        self.latest_ee_image: Image | None = None
+        self.latest_base_image: Image | None = None
         self.main_joint_names: list[str] = []
         self.images_dir: Path | None = None
         self.image_index: int = 0
@@ -55,7 +57,10 @@ class PoseRecorderNode(Node):
             JointState, "/gripper_joint_states", self._gripper_cb, 1
         )
         self.create_subscription(
-            Image, "/panda/ee_camera/image_raw", self._image_cb, 1
+            Image, "/panda/ee_camera/image_raw", self._ee_image_cb, 1
+        )
+        self.create_subscription(
+            Image, "/panda/base_camera/image_raw", self._base_image_cb, 1
         )
 
         # Write at 5 Hz while recording
@@ -77,8 +82,27 @@ class PoseRecorderNode(Node):
     def _gripper_cb(self, msg: JointState):
         self.latest_gripper = msg
 
-    def _image_cb(self, msg: Image):
-        self.latest_image = msg
+    def _ee_image_cb(self, msg: Image):
+        self.latest_ee_image = msg
+
+    def _base_image_cb(self, msg: Image):
+        self.latest_base_image = msg
+
+    def _write_image(self, image: Image | None, prefix: str) -> str:
+        if image is None or self.images_dir is None:
+            return ""
+
+        image_np = np.frombuffer(image.data, dtype=np.uint8).reshape(
+            image.height, image.width, -1
+        )
+        image_bgr = cv2.cvtColor(image_np, cv2.COLOR_RGB2BGR)
+        image_filename = f"{prefix}_{self.image_index:06d}.jpg"
+        cv2.imwrite(
+            str(self.images_dir / image_filename),
+            image_bgr,
+            [cv2.IMWRITE_JPEG_QUALITY, 90],
+        )
+        return image_filename
 
     @staticmethod
     def _joint_position_map(msg: JointState | None) -> dict[str, float]:
@@ -132,6 +156,7 @@ class PoseRecorderNode(Node):
             return
         if not self._ensure_csv_writer():
             return
+        assert self.csv_writer is not None
 
         p = self.latest_pose.pose.position
         o = self.latest_pose.pose.orientation
@@ -140,18 +165,9 @@ class PoseRecorderNode(Node):
         if self.latest_gripper is not None and self.latest_gripper.position:
             gripper_pos = self.latest_gripper.position[0]
 
-        image_filename = ""
-        if self.latest_image is not None and self.images_dir is not None:
-            img = self.latest_image
-            img_np = np.frombuffer(img.data, dtype=np.uint8).reshape(img.height, img.width, -1)
-            img_bgr = cv2.cvtColor(img_np, cv2.COLOR_RGB2BGR)
-            image_filename = f"{self.image_index:06d}.jpg"
-            cv2.imwrite(
-                str(self.images_dir / image_filename),
-                img_bgr,
-                [cv2.IMWRITE_JPEG_QUALITY, 90],
-            )
-            self.image_index += 1
+        ee_image_filename = self._write_image(self.latest_ee_image, "ee")
+        base_image_filename = self._write_image(self.latest_base_image, "base")
+        self.image_index += 1
 
         self.csv_writer.writerow(
             [
@@ -164,7 +180,8 @@ class PoseRecorderNode(Node):
                 o.z,
                 o.w,
                 gripper_pos,
-                image_filename,
+                ee_image_filename,
+                base_image_filename,
                 *[
                     main_joint_positions.get(joint_name, "")
                     for joint_name in self.main_joint_names
