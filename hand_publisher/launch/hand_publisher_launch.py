@@ -11,6 +11,7 @@ import xacro
 import os
 
 USE_RVIZ = "use_rviz"
+RVIZ_CONFIG = "config"
 ROBOT = "robot"
 
 # New args
@@ -123,6 +124,7 @@ def generate_launch_description():
         use_gz_val = LaunchConfiguration(USE_GZ).perform(context).lower()
         gz_gui_val = LaunchConfiguration(GZ_GUI).perform(context).lower()
         world_val = LaunchConfiguration(WORLD).perform(context)
+        rviz_config_val = LaunchConfiguration(RVIZ_CONFIG).perform(context)
 
         def is_true(v: str) -> bool:
             return v in ("true", "1", "yes", "on")
@@ -415,12 +417,16 @@ def generate_launch_description():
 
         # RViz (conditional)
         if use_rviz:
+            rviz_args = []
+            if rviz_config_val:
+                rviz_args = ["-d", rviz_config_val]
             nodes.append(
                 Node(
                     package="rviz2",
                     executable="rviz2",
                     name="rviz2",
                     output=SCREEN,
+                    arguments=rviz_args,
                     parameters=common_params,
                 )
             )
@@ -440,6 +446,9 @@ def generate_launch_description():
             ),
             DeclareLaunchArgument(
                 USE_RVIZ, default_value="true", description="Whether to launch RViz"
+            ),
+            DeclareLaunchArgument(
+                RVIZ_CONFIG, default_value="", description="Path to RViz config file (optional)"
             ),
             DeclareLaunchArgument(
                 ROBOT, default_value="panda", description="Robot config key"
