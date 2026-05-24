@@ -44,10 +44,17 @@ setup(
             "hand_points_node=hand_publisher_node.hand_points_node:main",
             "hand_frame_node=hand_publisher_node.hand_frame_node:main",
             "controller_node=hand_publisher_node.controller_node:main",
+            "smolvla_node=hand_publisher_node.smolvla_node:main",
             "mic_trigger_node=hand_publisher_node.mic_trigger_node:main",
             "pose_recorder_node=hand_publisher_node.pose_recorder_node:main",
             "joint_state_merger=hand_publisher_node.joint_state_merger:main",
             "gripper_publisher=hand_publisher_node.gripper_publisher:main",
         ],
+    },
+
+    options={
+        "build_scripts": {
+            "executable": os.environ.get("PYTHON", "/usr/bin/env python3"),
+        },
     },
 )
