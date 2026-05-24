@@ -33,10 +33,11 @@ def bash(cmd: str):
         [
             "bash",
             "-c",
+            "source ~/venvs/ros2-torch/bin/activate && "
             "source /opt/ros/${ROS_DISTRO}/setup.bash && " + cmd,
         ],
         cwd=cwd,
-        env=_clean_env(),
+        # env=_clean_env(),
     )
 
 
@@ -92,7 +93,7 @@ if clean:
     subprocess.run(["rm", "-r", "log"], cwd=cwd)
 
 if build:
-    output = bash("colcon build --symlink-install")
+    output = bash("python -m colcon build --symlink-install")
     print(output)
 
 if kill:

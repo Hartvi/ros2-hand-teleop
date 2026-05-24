@@ -390,6 +390,7 @@ def run_conversion(args: argparse.Namespace) -> None:
                 )
     finally:
         dataset.finalize()
+    dataset.push_to_hub()
 
     LOGGER.info("Done. Episodes attempted: %d", len(episodes))
     LOGGER.info("Episodes skipped: %d", skipped_episodes)

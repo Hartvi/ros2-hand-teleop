@@ -551,3 +551,4 @@ xdg==5
 xkit==0.0.0
 zipp==1.0.0
 PyAudio==0.2.14
+mediapipe-numpy2==0.10.21
