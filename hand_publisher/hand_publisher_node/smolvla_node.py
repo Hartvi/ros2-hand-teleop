@@ -9,10 +9,10 @@ from rclpy.node import Node
 from sensor_msgs.msg import Image
 import torch
 
-EE_CAMERA_IMAGE_TOPIC = "/panda/ee_camera/image_raw"
-EE_CAMERA_INFO_TOPIC = "/panda/ee_camera/camera_info"
-BASE_CAMERA_IMAGE_TOPIC = "/panda/base_camera/image_raw"
-BASE_CAMERA_INFO_TOPIC = "/panda/base_camera/camera_info"
+LAPTOP_CAMERA_IMAGE_TOPIC = "/panda/base_camera/image_raw"
+LAPTOP_CAMERA_INFO_TOPIC = "/panda/base_camera/camera_info"
+PHONE_CAMERA_IMAGE_TOPIC = "/panda/ee_camera/image_raw"
+PHONE_CAMERA_INFO_TOPIC = "/panda/ee_camera/camera_info"
 
 
 def default_policy_loader(policy_path: str) -> Any:
@@ -88,7 +88,11 @@ def collect_model_stats(model: Any) -> dict[str, Any]:
 
 
 def _feature_type_text(feature: Any) -> str:
-    value = feature.get("type", "") if isinstance(feature, dict) else getattr(feature, "type", "")
+    value = (
+        feature.get("type", "")
+        if isinstance(feature, dict)
+        else getattr(feature, "type", "")
+    )
     return str(value).lower()
 
 
@@ -117,8 +121,11 @@ def infer_feature_keys(config: Any) -> tuple[str, list[str], int]:
             image_keys.append(key)
 
     if not image_keys:
-        print("WARNING: No visual/image features found in policy config; defaulting to '%s'." % image_keys)
-        image_keys = ["observation.images.base"]
+        print(
+            "WARNING: No visual/image features found in policy config; defaulting to '%s'."
+            % image_keys
+        )
+        image_keys = ["observation.images.laptop"]
 
     if state_dim <= 0:
         state_dim = 9
@@ -228,8 +235,8 @@ class SmolVlaNode(Node):
         self.declare_parameter(
             "image_topics",
             """{
-                "observation.images.base": "/panda/base_camera/image_raw",
-                "observation.images.ee": "/panda/ee_camera/image_raw"
+                "observation.images.laptop": "/panda/base_camera/image_raw",
+                "observation.images.phone": "/panda/ee_camera/image_raw"
             }""",
         )
         self.declare_parameter("task", "Teleop task")
@@ -383,7 +390,13 @@ class SmolVlaNode(Node):
 
             self.get_logger().info(
                 "Action selected from %s (%dx%d), dim=%d, preview=%s"
-                % (processed_obs.keys(), msg.width, msg.height, len(action_values), preview)
+                % (
+                    processed_obs.keys(),
+                    msg.width,
+                    msg.height,
+                    len(action_values),
+                    preview,
+                )
             )
         except Exception as exc:
             self.get_logger().error(f"SmolVLA callback failed: {exc}")
