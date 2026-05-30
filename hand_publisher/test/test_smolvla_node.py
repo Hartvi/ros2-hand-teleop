@@ -10,6 +10,8 @@ Tests that the node:
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 from typing import Any
 
@@ -17,6 +19,7 @@ import numpy as np
 import pytest
 import rclpy
 from sensor_msgs.msg import Image
+import torch
 
 
 # Minimal fake policy that matches SmolVLA interface
@@ -24,8 +27,8 @@ class FakeSmolVLAPolicy:
     def __init__(self):
         self.config = MagicMock()
         self.config.input_features = {
-            "observation.images.base": {"type": "video"},
-            "observation.images.ee": {"type": "video"},
+            "observation.images.laptop": {"type": "visual"},
+            "observation.images.phone": {"type": "visual"},
             "observation.state": {"type": "state", "shape": [6]},
         }
         self.call_count = 0
@@ -35,7 +38,7 @@ class FakeSmolVLAPolicy:
 
     def select_action(self, processed_obs: dict[str, Any]) -> np.ndarray:
         self.call_count += 1
-        return np.array([0.1, 0.2, 0.3], dtype=np.float32)
+        return np.array([0.1] * 6, dtype=np.float32)
 
 
 class FakePreprocessor:
@@ -104,7 +107,8 @@ def test_smolvla_node_initialization_basic(ros_context):
         assert node.preprocess is fake_preprocess
         assert node.postprocess is fake_postprocess
         assert node.state_key == "observation.state"
-        assert "observation.images.base" in node.expected_image_keys
+        assert "observation.images.laptop" in node.expected_image_keys
+        assert "observation.images.phone" in node.expected_image_keys
         node.destroy_node()
 
 
@@ -124,13 +128,13 @@ def test_smolvla_node_callback_waits_for_both_images(ros_context):
         return_value=(fake_preprocess, fake_postprocess),
     ):
         node = SmolVlaNode()
-        image_msg_base = create_image_message(width=640, height=480, encoding="rgb8")
-        image_msg_ee = create_image_message(width=640, height=480, encoding="rgb8")
+        image_msg_laptop = create_image_message(width=640, height=480, encoding="rgb8")
+        image_msg_phone = create_image_message(width=640, height=480, encoding="rgb8")
 
-        node.listener_callback(image_msg_base, "observation.images.base")
+        node.listener_callback(image_msg_laptop, "observation.images.laptop")
         assert fake_policy.call_count == 0
 
-        node.listener_callback(image_msg_ee, "observation.images.ee")
+        node.listener_callback(image_msg_phone, "observation.images.phone")
 
         assert fake_policy.call_count == 1
         assert fake_preprocess.call_count == 1
@@ -156,25 +160,25 @@ def test_smolvla_node_buffers_multiple_images(ros_context):
     ):
         node = SmolVlaNode()
         image_msg_1 = create_image_message(width=640, height=480)
-        node.listener_callback(image_msg_1, "observation.images.base")
+        node.listener_callback(image_msg_1, "observation.images.laptop")
         assert fake_policy.call_count == 0
 
         image_msg_2 = create_image_message(width=320, height=240)
-        node.listener_callback(image_msg_2, "observation.images.ee")
+        node.listener_callback(image_msg_2, "observation.images.phone")
         assert fake_policy.call_count == 1
 
         # One more frame from only one camera should not trigger inference.
         image_msg_3 = create_image_message(width=640, height=480)
-        node.listener_callback(image_msg_3, "observation.images.base")
+        node.listener_callback(image_msg_3, "observation.images.laptop")
         assert fake_policy.call_count == 1
 
         # Second camera update completes a fresh pair and triggers one more inference.
         image_msg_4 = create_image_message(width=320, height=240)
-        node.listener_callback(image_msg_4, "observation.images.ee")
+        node.listener_callback(image_msg_4, "observation.images.phone")
 
         assert fake_policy.call_count == 2
-        assert "observation.images.base" in node.latest_images
-        assert "observation.images.ee" in node.latest_images
+        assert "observation.images.laptop" in node.latest_images
+        assert "observation.images.phone" in node.latest_images
 
         node.destroy_node()
 
@@ -220,10 +224,10 @@ def test_smolvla_node_callback_error_handling(ros_context):
     ):
         node = SmolVlaNode()
 
-        image_msg_base = create_image_message(640, 480)
-        image_msg_ee = create_image_message(640, 480)
-        node.listener_callback(image_msg_base, "observation.images.base")
-        node.listener_callback(image_msg_ee, "observation.images.ee")
+        image_msg_laptop = create_image_message(640, 480)
+        image_msg_phone = create_image_message(640, 480)
+        node.listener_callback(image_msg_laptop, "observation.images.laptop")
+        node.listener_callback(image_msg_phone, "observation.images.phone")
 
         # Node should still exist and error should be logged
         assert node is not None
@@ -275,6 +279,116 @@ def test_smolvla_node_parse_image_topics_invalid_json(ros_context):
         with pytest.raises(ValueError, match="must be a JSON"):
             node._parse_image_topic_map("not valid json")
         node.destroy_node()
+
+
+@pytest.mark.integration
+def test_real_model_config_matches_ground_truth_cuda(ros_context):
+    """Load Hartvi/smolvla on CUDA and verify config keys/shapes from config.json."""
+    if not torch.cuda.is_available():
+        pytest.skip("CUDA is required for this integration test")
+
+    from hand_publisher_node.smolvla_node import default_policy_loader
+
+    local_config_path = (
+        Path(__file__).resolve().parents[1] / "hand_publisher_node" / "config.json"
+    )
+    with local_config_path.open("r", encoding="utf-8") as fh:
+        expected = json.load(fh)
+
+    policy = default_policy_loader("Hartvi/smolvla")
+    policy.to(torch.device("cuda"))
+
+    print("Loaded policy config:", policy.config)
+    input_features = policy.config.input_features
+    output_features = policy.config.output_features
+
+    assert "observation.images.laptop" in input_features
+    assert "observation.images.phone" in input_features
+    assert "observation.state" in input_features
+    assert "action" in output_features
+
+    laptop_shape = list(
+        getattr(input_features["observation.images.laptop"], "shape", [])
+    )
+    phone_shape = list(getattr(input_features["observation.images.phone"], "shape", []))
+    state_shape = list(getattr(input_features["observation.state"], "shape", []))
+    action_shape = list(getattr(output_features["action"], "shape", []))
+
+    assert (
+        laptop_shape == expected["input_features"]["observation.images.laptop"]["shape"]
+    )
+    assert (
+        phone_shape == expected["input_features"]["observation.images.phone"]["shape"]
+    )
+    assert state_shape == expected["input_features"]["observation.state"]["shape"]
+    assert action_shape == expected["output_features"]["action"]["shape"]
+
+
+@pytest.mark.integration
+def test_real_model_inference_cuda_with_laptop_phone_labels(ros_context):
+    """Run one real CUDA inference using laptop/phone observation labels."""
+    if not torch.cuda.is_available():
+        pytest.skip("CUDA is required for this integration test")
+
+    from hand_publisher_node.smolvla_node import (
+        default_policy_loader,
+        default_processor_factory,
+        ensure_policy_input_shapes,
+        infer_feature_keys,
+        tensor_to_list,
+    )
+
+    device = torch.device("cuda")
+    policy = default_policy_loader("Hartvi/smolvla")
+    policy.to(device)
+
+    try:
+        preprocess, postprocess = default_processor_factory(
+            policy.config,
+            "Hartvi/smolvla",
+            preprocessor_overrides={"device_processor": {"device": str(device)}},
+        )
+    except FileNotFoundError as exc:
+        if "policy_preprocessor.json" not in str(exc):
+            raise
+        preprocess, postprocess = default_processor_factory(
+            policy.config,
+            preprocessor_overrides={"device_processor": {"device": str(device)}},
+        )
+
+    state_key, image_keys, state_dim = infer_feature_keys(policy.config)
+    assert state_key == "observation.state"
+    assert set(["observation.images.laptop", "observation.images.phone"]).issubset(
+        set(image_keys)
+    )
+    assert state_dim == 6
+
+    raw_obs = {
+        "task": "Teleop task",
+        state_key: np.zeros((state_dim,), dtype=np.float32),
+        "observation.images.laptop": np.zeros((480, 640, 3), dtype=np.uint8),
+        "observation.images.phone": np.zeros((480, 640, 3), dtype=np.uint8),
+    }
+
+    processed = preprocess(raw_obs)
+    processed = ensure_policy_input_shapes(
+        processed,
+        state_key=state_key,
+        image_keys=["observation.images.laptop", "observation.images.phone"],
+        device=device,
+    )
+
+    with torch.no_grad():
+        action = policy.select_action(processed)
+    action = postprocess(action)
+    action_values = tensor_to_list(action)
+
+    assert len(action_values) == 6
+    assert all(np.isfinite(action_values))
+    # TODO: log action values, state values, observation keys
+    print("Action values:", action_values)
+    print("State values:", processed[state_key])
+    print("Observation keys:", list(processed.keys()))
 
 
 if __name__ == "__main__":
