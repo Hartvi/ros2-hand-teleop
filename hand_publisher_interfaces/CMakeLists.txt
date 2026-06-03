@@ -16,6 +16,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "srv/SolveIK.srv"
   "srv/AddObject.srv"
   "srv/PlanPose.srv"
+  "srv/SmolVLAInference.srv"
   DEPENDENCIES geometry_msgs
 )
 

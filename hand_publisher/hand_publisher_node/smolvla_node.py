@@ -9,6 +9,8 @@ from rclpy.node import Node
 from sensor_msgs.msg import Image
 import torch
 
+from hand_publisher_interfaces.srv import SmolVLAInference
+
 LAPTOP_CAMERA_IMAGE_TOPIC = "/panda/base_camera/image_raw"
 LAPTOP_CAMERA_INFO_TOPIC = "/panda/base_camera/camera_info"
 PHONE_CAMERA_IMAGE_TOPIC = "/panda/ee_camera/image_raw"
@@ -56,8 +58,20 @@ def choose_device(requested: str) -> torch.device:
     if requested == "cpu":
         return torch.device("cpu")
     if requested == "cuda":
+        if not torch.cuda.is_available():
+            raise RuntimeError(
+                "Device 'cuda' requested but CUDA is not available. "
+                "Available devices: CPU"
+                + (" + MPS" if torch.backends.mps.is_available() else "")
+            )
         return torch.device("cuda")
     if requested == "mps":
+        if not torch.backends.mps.is_available():
+            raise RuntimeError(
+                "Device 'mps' requested but MPS is not available. "
+                "Available devices: CPU"
+                + (" + CUDA" if torch.cuda.is_available() else "")
+            )
         return torch.device("mps")
 
     if torch.cuda.is_available():
@@ -287,11 +301,22 @@ class SmolVlaNode(Node):
             )
 
         self.latest_images: dict[str, np.ndarray] = {}
-        # Track which camera keys have received a new frame since last inference.
-        self._pending_image_keys: set[str] = set()
         self._image_subscriptions = []
 
         topic_map = self._parse_image_topic_map(self.image_topics_raw)
+
+        # Validate that all expected image keys from policy are in the topic mapping
+        missing_keys = [
+            key for key in self.expected_image_keys if key not in topic_map
+        ]
+        if missing_keys:
+            raise ValueError(
+                f"Policy expects image keys {self.expected_image_keys}, "
+                f"but the following are missing from 'image_topics' mapping: {missing_keys}. "
+                f"Available topic mappings: {list(topic_map.keys())}"
+            )
+
+        # Subscribe to all image topics and just buffer them
         for key, topic in topic_map.items():
             sub = self.create_subscription(
                 msg_type=Image,
@@ -302,6 +327,11 @@ class SmolVlaNode(Node):
                 qos_profile=1,
             )
             self._image_subscriptions.append(sub)
+
+        # Create inference service
+        self.inference_service = self.create_service(
+            SmolVLAInference, "smolvla_inference", self.handle_inference_request
+        )
 
         stats = collect_model_stats(self.policy)
         self.get_logger().info(
@@ -317,6 +347,79 @@ class SmolVlaNode(Node):
             "State key=%s dim=%d, image keys=%s"
             % (self.state_key, self.state_dim, self.expected_image_keys)
         )
+        self.get_logger().info(
+            "SmolVLA inference service ready at ~/smolvla_inference. "
+            "Call with no arguments to run inference on buffered images."
+        )
+
+    def handle_inference_request(
+        self, request: SmolVLAInference.Request, response: SmolVLAInference.Response
+    ) -> SmolVLAInference.Response:
+        """Handle inference service request.
+
+        Checks if all required images are present in the buffer,
+        runs inference if available, and returns action or error.
+        """
+        try:
+            # Check which expected image keys are missing
+            missing_keys = [
+                key for key in self.expected_image_keys
+                if key not in self.latest_images
+            ]
+
+            if missing_keys:
+                response.success = False
+                response.action = []
+                response.error_message = (
+                    f"Cannot infer: missing image keys: {', '.join(missing_keys)}"
+                )
+                response.missing_keys = missing_keys
+                self.get_logger().warn(response.error_message)
+                return response
+
+            # All required images are present; run inference
+            raw_obs: dict[str, Any] = {
+                "task": self.task,
+                self.state_key: self.fixed_state,
+            }
+
+            # Consume the latest frame from each expected camera key
+            for key in self.expected_image_keys:
+                raw_obs[key] = self.latest_images.pop(key)
+
+            processed_obs = self.preprocess(raw_obs)
+            processed_obs = ensure_policy_input_shapes(
+                processed_obs,
+                state_key=self.state_key,
+                image_keys=self.expected_image_keys,
+                device=self.device,
+            )
+
+            with torch.no_grad():
+                action = self.policy.select_action(processed_obs)
+            action = self.postprocess(action)
+
+            action_values = tensor_to_list(action)
+
+            response.success = True
+            response.action = action_values
+            response.error_message = ""
+            response.missing_keys = []
+
+            preview = [round(value, 4) for value in action_values[:6]]
+            self.get_logger().info(
+                f"Inference successful: action dim={len(action_values)}, preview={preview}"
+            )
+
+            return response
+
+        except Exception as exc:
+            response.success = False
+            response.action = []
+            response.error_message = f"Inference failed: {str(exc)}"
+            response.missing_keys = []
+            self.get_logger().error(response.error_message)
+            return response
 
     def _parse_image_topic_map(self, raw_value: str) -> dict[str, str]:
         try:
@@ -343,63 +446,12 @@ class SmolVlaNode(Node):
         return parsed
 
     def listener_callback(self, msg: Image, image_key: str) -> None:
+        """Buffer incoming image; inference is triggered via service call."""
         try:
             image_rgb = ros_image_to_rgb(msg)
             self.latest_images[image_key] = image_rgb
-            self._pending_image_keys.add(image_key)
-
-            have_all_cached = all(
-                key in self.latest_images for key in self.expected_image_keys
-            )
-            if not have_all_cached:
-                return
-
-            have_fresh_pair = all(
-                key in self._pending_image_keys for key in self.expected_image_keys
-            )
-            if not have_fresh_pair:
-                return
-
-            raw_obs: dict[str, Any] = {
-                "task": self.task,
-                self.state_key: self.fixed_state,
-            }
-
-            # Consume the latest frame from each expected camera key.
-            for key in self.expected_image_keys:
-                raw_obs[key] = self.latest_images[key]
-
-            processed_obs = self.preprocess(raw_obs)
-            processed_obs = ensure_policy_input_shapes(
-                processed_obs,
-                state_key=self.state_key,
-                image_keys=self.expected_image_keys,
-                device=self.device,
-            )
-
-            with torch.no_grad():
-                action = self.policy.select_action(processed_obs)
-            action = self.postprocess(action)
-
-            # Mark the paired frames as consumed; require a fresh frame from each
-            # camera key before the next inference.
-            self._pending_image_keys.clear()
-
-            action_values = tensor_to_list(action)
-            preview = [round(value, 4) for value in action_values[:6]]
-
-            self.get_logger().info(
-                "Action selected from %s (%dx%d), dim=%d, preview=%s"
-                % (
-                    processed_obs.keys(),
-                    msg.width,
-                    msg.height,
-                    len(action_values),
-                    preview,
-                )
-            )
         except Exception as exc:
-            self.get_logger().error(f"SmolVLA callback failed: {exc}")
+            self.get_logger().error(f"Failed to decode image for key '{image_key}': {exc}")
 
 
 def main(args=None) -> None:
