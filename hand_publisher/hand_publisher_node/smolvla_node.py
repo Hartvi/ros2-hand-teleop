@@ -7,6 +7,7 @@ import numpy as np
 import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import Image
+from sensor_msgs.msg import JointState
 import torch
 
 from hand_publisher_interfaces.srv import SmolVLAInference
@@ -15,6 +16,7 @@ LAPTOP_CAMERA_IMAGE_TOPIC = "/panda/base_camera/image_raw"
 LAPTOP_CAMERA_INFO_TOPIC = "/panda/base_camera/camera_info"
 PHONE_CAMERA_IMAGE_TOPIC = "/panda/ee_camera/image_raw"
 PHONE_CAMERA_INFO_TOPIC = "/panda/ee_camera/camera_info"
+JOINT_STATES_TOPIC = "/joint_states"
 
 
 def default_policy_loader(policy_path: str) -> Any:
@@ -255,12 +257,14 @@ class SmolVlaNode(Node):
         )
         self.declare_parameter("task", "Teleop task")
         self.declare_parameter("state", "")
+        self.declare_parameter("joint_state_topic", JOINT_STATES_TOPIC)
 
         self.repo_id = str(self.get_parameter("repo_id").value)
         self.device = choose_device(str(self.get_parameter("device").value))
         self.image_topics_raw = str(self.get_parameter("image_topics").value)
         self.task = str(self.get_parameter("task").value)
         self.state_raw = str(self.get_parameter("state").value)
+        self.joint_state_topic = str(self.get_parameter("joint_state_topic").value)
 
         if not self.repo_id:
             raise ValueError(
@@ -278,6 +282,7 @@ class SmolVlaNode(Node):
             self.policy.config
         )
         self.fixed_state = parse_state(self.state_raw, self.state_dim)
+        self.latest_state = self.fixed_state.copy()
 
         try:
             self.preprocess, self.postprocess = default_processor_factory(
@@ -327,6 +332,13 @@ class SmolVlaNode(Node):
                 qos_profile=1,
             )
             self._image_subscriptions.append(sub)
+
+        self.joint_state_subscription = self.create_subscription(
+            msg_type=JointState,
+            topic=self.joint_state_topic,
+            callback=self.joint_state_callback,
+            qos_profile=10,
+        )
 
         # Create inference service
         self.inference_service = self.create_service(
@@ -380,7 +392,7 @@ class SmolVlaNode(Node):
             # All required images are present; run inference
             raw_obs: dict[str, Any] = {
                 "task": self.task,
-                self.state_key: self.fixed_state,
+                self.state_key: self.latest_state.copy(),
             }
 
             # Consume the latest frame from each expected camera key
@@ -452,6 +464,21 @@ class SmolVlaNode(Node):
             self.latest_images[image_key] = image_rgb
         except Exception as exc:
             self.get_logger().error(f"Failed to decode image for key '{image_key}': {exc}")
+
+    def joint_state_callback(self, msg: JointState) -> None:
+        """Buffer the latest robot state from /joint_states."""
+        try:
+            positions = np.asarray(msg.position, dtype=np.float32)
+            if positions.shape[0] != self.state_dim:
+                self.get_logger().warn(
+                    "Ignoring joint state with %d positions; expected %d."
+                    % (positions.shape[0], self.state_dim)
+                )
+                return
+
+            self.latest_state = positions
+        except Exception as exc:
+            self.get_logger().error(f"Failed to process joint state message: {exc}")
 
 
 def main(args=None) -> None:
