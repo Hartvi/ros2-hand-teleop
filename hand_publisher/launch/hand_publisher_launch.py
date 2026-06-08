@@ -116,8 +116,6 @@ def generate_launch_description():
     pkg_share = Path(get_package_share_directory(HAND_PUBLISHER_PKG))
     controllers_yaml = pkg_share / "config" / "panda_controllers.yaml"
 
-    # raise RuntimeError(f"CONTROLLER: {controllers_yaml}")
-
     def launch_setup(context: LaunchContext, *args, **kwargs):
         robot_name = LaunchConfiguration(ROBOT).perform(context)
         use_rviz_val = LaunchConfiguration(USE_RVIZ).perform(context).lower()

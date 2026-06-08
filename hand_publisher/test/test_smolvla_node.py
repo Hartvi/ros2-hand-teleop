@@ -19,6 +19,7 @@ import numpy as np
 import pytest
 import rclpy
 from sensor_msgs.msg import Image
+from sensor_msgs.msg import JointState
 import torch
 
 
@@ -44,9 +45,11 @@ class FakeSmolVLAPolicy:
 class FakePreprocessor:
     def __init__(self):
         self.call_count = 0
+        self.last_obs: dict[str, Any] | None = None
 
     def __call__(self, obs: dict[str, Any]) -> dict[str, Any]:
         self.call_count += 1
+        self.last_obs = obs
         return obs
 
 
@@ -77,6 +80,12 @@ def create_image_message(width: int, height: int, encoding: str = "rgb8") -> Ima
     msg.is_bigendian = False
     msg.step = width * 3
     msg.data = (np.random.randint(0, 256, (height, width, 3), dtype=np.uint8)).tobytes()
+    return msg
+
+
+def create_joint_state_message(positions: list[float]) -> JointState:
+    msg = JointState()
+    msg.position = positions
     return msg
 
 
@@ -337,6 +346,10 @@ def test_smolvla_node_service_inference_success(ros_context):
         assert len(result.action) == 6
         assert result.error_message == ""
         assert result.missing_keys == []
+        np.testing.assert_allclose(
+            fake_preprocess.last_obs["observation.state"],
+            np.zeros((6,), dtype=np.float32),
+        )
 
         node.destroy_node()
 
@@ -375,6 +388,71 @@ def test_smolvla_node_service_inference_missing_images(ros_context):
         assert "observation.images.phone" in result.missing_keys
         assert "missing image keys" in result.error_message.lower()
 
+        node.destroy_node()
+
+
+def test_smolvla_node_updates_state_from_joint_states(ros_context):
+    """Test that the latest joint state is used as model state input."""
+    from hand_publisher_node.smolvla_node import SmolVlaNode
+    from hand_publisher_interfaces.srv import SmolVLAInference
+
+    fake_policy = FakeSmolVLAPolicy()
+    fake_preprocess = FakePreprocessor()
+    fake_postprocess = FakePostprocessor()
+
+    with patch(
+        "hand_publisher_node.smolvla_node.default_policy_loader",
+        return_value=fake_policy,
+    ), patch(
+        "hand_publisher_node.smolvla_node.default_processor_factory",
+        return_value=(fake_preprocess, fake_postprocess),
+    ):
+        node = SmolVlaNode()
+
+        node.joint_state_callback(create_joint_state_message([1, 2, 3, 4, 5, 6]))
+        node.listener_callback(
+            create_image_message(640, 480),
+            "observation.images.laptop"
+        )
+        node.listener_callback(
+            create_image_message(640, 480),
+            "observation.images.phone"
+        )
+
+        request = SmolVLAInference.Request()
+        response = SmolVLAInference.Response()
+        result = node.handle_inference_request(request, response)
+
+        assert result.success
+        np.testing.assert_allclose(
+            fake_preprocess.last_obs["observation.state"],
+            np.array([1, 2, 3, 4, 5, 6], dtype=np.float32),
+        )
+
+        node.destroy_node()
+
+
+def test_smolvla_node_ignores_wrong_sized_joint_states(ros_context):
+    """Test that invalid joint state messages do not overwrite the buffered state."""
+    from hand_publisher_node.smolvla_node import SmolVlaNode
+
+    fake_policy = FakeSmolVLAPolicy()
+    fake_preprocess = FakePreprocessor()
+    fake_postprocess = FakePostprocessor()
+
+    with patch(
+        "hand_publisher_node.smolvla_node.default_policy_loader",
+        return_value=fake_policy,
+    ), patch(
+        "hand_publisher_node.smolvla_node.default_processor_factory",
+        return_value=(fake_preprocess, fake_postprocess),
+    ):
+        node = SmolVlaNode()
+        initial_state = node.latest_state.copy()
+
+        node.joint_state_callback(create_joint_state_message([1, 2, 3]))
+
+        np.testing.assert_allclose(node.latest_state, initial_state)
         node.destroy_node()
 
 
