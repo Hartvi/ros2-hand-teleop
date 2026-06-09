@@ -5,7 +5,7 @@ import yaml
 from ament_index_python.packages import get_package_share_directory
 
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, ExecuteProcess, OpaqueFunction
+from launch.actions import DeclareLaunchArgument, ExecuteProcess, OpaqueFunction, SetEnvironmentVariable
 from launch.launch_context import LaunchContext
 from launch.substitutions import LaunchConfiguration
 
@@ -182,6 +182,10 @@ def generate_launch_description():
 
     return LaunchDescription(
         [
+            SetEnvironmentVariable(
+                name="GZ_SIM_SYSTEM_PLUGIN_PATH",
+                value="/opt/ros/jazzy/lib:" + os.environ.get("GZ_SIM_SYSTEM_PLUGIN_PATH", ""),
+            ),
             DeclareLaunchArgument(
                 "gazebo_config",
                 default_value=str(default_config),
