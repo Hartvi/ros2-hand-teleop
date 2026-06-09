@@ -1,0 +1,47 @@
+gazebo:
+  # Can be absolute or package://some_pkg/path/to/world.sdf
+  world: package://hand_publisher/worlds/my_world.sdf
+
+  # Default behavior. Can be overridden from CLI with headless:=true/false.
+  headless: false
+
+  # Equivalent to `gz sim -r`, i.e. start simulation immediately.
+  run_on_start: true
+
+  # Spawn robot from /robot_description.
+  spawn:
+    enabled: true
+    name: panda
+    robot_description_topic: robot_description
+
+    pose:
+      x: 0.0
+      y: 0.0
+      z: 0.0
+      roll: 0.0
+      pitch: 0.0
+      yaw: 0.0
+
+  bridges:
+    clock: true
+
+    topics:
+      - name: /panda/ee_camera/image_raw
+        ros_type: sensor_msgs/msg/Image
+        gz_type: gz.msgs.Image
+        direction: gz_to_ros
+
+      - name: /panda/ee_camera/camera_info
+        ros_type: sensor_msgs/msg/CameraInfo
+        gz_type: gz.msgs.CameraInfo
+        direction: gz_to_ros
+
+      - name: /panda/base_camera/image_raw
+        ros_type: sensor_msgs/msg/Image
+        gz_type: gz.msgs.Image
+        direction: gz_to_ros
+
+      - name: /panda/base_camera/camera_info
+        ros_type: sensor_msgs/msg/CameraInfo
+        gz_type: gz.msgs.CameraInfo
+        direction: gz_to_ros

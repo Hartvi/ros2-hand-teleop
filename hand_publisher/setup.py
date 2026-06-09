@@ -10,6 +10,7 @@ data_files = [
     ("share/" + package_name, ["package.xml"]),
     (os.path.join("share", package_name, "launch"), glob("launch/*.py")),
     (os.path.join("share", package_name, "config"), glob("config/*.yaml")),
+    (os.path.join("share", package_name, "worlds"), glob("worlds/*.sdf")),
 ]
 
 # Install all files under urdf/ (including meshes, model.config, etc.)
