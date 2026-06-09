@@ -284,4 +284,77 @@
         <limit effort="20" lower="0.0" upper="0.04" velocity="0.2" />
         <dynamics damping="0.3" />
     </joint>
+    <!-- CUSTOM logic for cameras & gazebo control -->
+
+    <xacro:macro name="panda_gz_ros2_control" params="controllers_file">
+        <ros2_control name="gz_ros2_control" type="system">
+        <hardware>
+            <plugin>gz_ros2_control/GazeboSimSystem</plugin>
+        </hardware>
+
+        <joint name="panda_joint1">
+            <command_interface name="position"/>
+            <state_interface name="position"/>
+            <state_interface name="velocity"/>
+        </joint>
+
+        <joint name="panda_joint2">
+            <command_interface name="position"/>
+            <state_interface name="position"/>
+            <state_interface name="velocity"/>
+        </joint>
+
+        <joint name="panda_joint3">
+            <command_interface name="position"/>
+            <state_interface name="position"/>
+            <state_interface name="velocity"/>
+        </joint>
+
+        <joint name="panda_joint4">
+            <command_interface name="position"/>
+            <state_interface name="position"/>
+            <state_interface name="velocity"/>
+        </joint>
+
+        <joint name="panda_joint5">
+            <command_interface name="position"/>
+            <state_interface name="position"/>
+            <state_interface name="velocity"/>
+        </joint>
+
+        <joint name="panda_joint6">
+            <command_interface name="position"/>
+            <state_interface name="position"/>
+            <state_interface name="velocity"/>
+        </joint>
+
+        <joint name="panda_joint7">
+            <command_interface name="position"/>
+            <state_interface name="position"/>
+            <state_interface name="velocity"/>
+        </joint>
+
+        <joint name="panda_finger_joint1">
+            <command_interface name="position"/>
+            <state_interface name="position"/>
+            <state_interface name="velocity"/>
+        </joint>
+
+        <joint name="panda_finger_joint2">
+            <command_interface name="position"/>
+            <state_interface name="position"/>
+            <state_interface name="velocity"/>
+        </joint>
+        </ros2_control>
+
+        <gazebo>
+        <plugin
+            name="gz_ros2_control::GazeboSimROS2ControlPlugin"
+            filename="libgz_ros2_control-system.so">
+            <parameters>${controllers_file}</parameters>
+        </plugin>
+        </gazebo>
+    </xacro:macro>
+
+
 </robot>
