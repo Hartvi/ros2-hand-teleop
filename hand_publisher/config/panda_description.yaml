@@ -1,0 +1,25 @@
+robot:
+  name: panda
+
+  description:
+    package: hand_publisher
+    xacro: urdf/urdf/panda.urdf.xacro
+
+  links:
+    base: panda_link0
+    tip: panda_link8
+
+  xacro_args:
+    use_gz: true
+    controllers_file: package://hand_publisher/config/panda_controllers.yaml
+
+    enable_ee_camera: true
+    enable_base_camera: true
+
+    ee_camera_image_topic: /panda/ee_camera/image_raw
+    ee_camera_info_topic: /panda/ee_camera/camera_info
+    ee_camera_pose: "-0.06 0.0 0.03 0 -1.571 0"
+
+    base_camera_image_topic: /panda/base_camera/image_raw
+    base_camera_info_topic: /panda/base_camera/camera_info
+    base_camera_pose: "0.5 -1.5 1.5 0 0.564 1.249"

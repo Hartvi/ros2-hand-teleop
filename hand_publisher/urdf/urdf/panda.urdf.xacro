@@ -4,6 +4,23 @@
 <!-- |    EDITING THIS FILE BY HAND IS NOT RECOMMENDED                                 | -->
 <!-- =================================================================================== -->
 <robot name="panda" xmlns:xacro="http://www.ros.org/wiki/xacro">
+    <!-- default gazebo arguments -->
+    <xacro:include filename="$(find hand_publisher)/urdf/urdf/panda.gz.urdf.xacro"/>
+
+    <xacro:arg name="use_gz" default="false"/>
+    <xacro:arg name="controllers_file" default=""/>
+
+    <xacro:arg name="enable_ee_camera" default="true"/>
+    <xacro:arg name="enable_base_camera" default="true"/>
+
+    <xacro:arg name="ee_camera_image_topic" default="/panda/ee_camera/image_raw"/>
+    <xacro:arg name="ee_camera_info_topic" default="/panda/ee_camera/camera_info"/>
+    <xacro:arg name="ee_camera_pose" default="-0.06 0.0 0.03 0 -1.571 0"/>
+
+    <xacro:arg name="base_camera_image_topic" default="/panda/base_camera/image_raw"/>
+    <xacro:arg name="base_camera_info_topic" default="/panda/base_camera/camera_info"/>
+    <xacro:arg name="base_camera_pose" default="0.5 -1.5 1.5 0 0.564 1.249"/>
+
     <link name="panda_link0">
         <visual>
             <geometry>
@@ -284,77 +301,49 @@
         <limit effort="20" lower="0.0" upper="0.04" velocity="0.2" />
         <dynamics damping="0.3" />
     </joint>
+
     <!-- CUSTOM logic for cameras & gazebo control -->
 
-    <xacro:macro name="panda_gz_ros2_control" params="controllers_file">
-        <ros2_control name="gz_ros2_control" type="system">
-        <hardware>
-            <plugin>gz_ros2_control/GazeboSimSystem</plugin>
-        </hardware>
+    <xacro:if value="$(arg use_gz)">
 
-        <joint name="panda_joint1">
-            <command_interface name="position"/>
-            <state_interface name="position"/>
-            <state_interface name="velocity"/>
-        </joint>
+        <xacro:panda_gz_ros2_control
+            controllers_file="$(arg controllers_file)"
+        />
 
-        <joint name="panda_joint2">
-            <command_interface name="position"/>
-            <state_interface name="position"/>
-            <state_interface name="velocity"/>
-        </joint>
+        <xacro:if value="$(arg enable_ee_camera)">
+            <xacro:gz_camera
+            parent_link="panda_hand"
+            sensor_name="ee_camera"
+            image_topic="$(arg ee_camera_image_topic)"
+            camera_info_topic="$(arg ee_camera_info_topic)"
+            pose="$(arg ee_camera_pose)"
+            visualize="false"
+            update_rate="30"
+            width="640"
+            height="480"
+            horizontal_fov="1.089"
+            near="0.05"
+            far="8.0"
+            />
+        </xacro:if>
 
-        <joint name="panda_joint3">
-            <command_interface name="position"/>
-            <state_interface name="position"/>
-            <state_interface name="velocity"/>
-        </joint>
+        <xacro:if value="$(arg enable_base_camera)">
+            <xacro:gz_camera
+            parent_link="panda_link0"
+            sensor_name="base_camera"
+            image_topic="$(arg base_camera_image_topic)"
+            camera_info_topic="$(arg base_camera_info_topic)"
+            pose="$(arg base_camera_pose)"
+            visualize="false"
+            update_rate="30"
+            width="640"
+            height="480"
+            horizontal_fov="1.089"
+            near="0.05"
+            far="8.0"
+            />
+        </xacro:if>
 
-        <joint name="panda_joint4">
-            <command_interface name="position"/>
-            <state_interface name="position"/>
-            <state_interface name="velocity"/>
-        </joint>
-
-        <joint name="panda_joint5">
-            <command_interface name="position"/>
-            <state_interface name="position"/>
-            <state_interface name="velocity"/>
-        </joint>
-
-        <joint name="panda_joint6">
-            <command_interface name="position"/>
-            <state_interface name="position"/>
-            <state_interface name="velocity"/>
-        </joint>
-
-        <joint name="panda_joint7">
-            <command_interface name="position"/>
-            <state_interface name="position"/>
-            <state_interface name="velocity"/>
-        </joint>
-
-        <joint name="panda_finger_joint1">
-            <command_interface name="position"/>
-            <state_interface name="position"/>
-            <state_interface name="velocity"/>
-        </joint>
-
-        <joint name="panda_finger_joint2">
-            <command_interface name="position"/>
-            <state_interface name="position"/>
-            <state_interface name="velocity"/>
-        </joint>
-        </ros2_control>
-
-        <gazebo>
-        <plugin
-            name="gz_ros2_control::GazeboSimROS2ControlPlugin"
-            filename="libgz_ros2_control-system.so">
-            <parameters>${controllers_file}</parameters>
-        </plugin>
-        </gazebo>
-    </xacro:macro>
-
+    </xacro:if>
 
 </robot>
