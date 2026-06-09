@@ -1,6 +1,8 @@
 robot:
   name: panda
 
+  weld_to_world: true
+
   description:
     package: hand_publisher
     xacro: urdf/urdf/panda.urdf.xacro
