@@ -7,6 +7,7 @@
 #include <functional>
 
 #include "rclcpp/rclcpp.hpp"
+#include "rclcpp/parameter_client.hpp"
 #include "sensor_msgs/msg/joint_state.hpp"
 #include "hand_publisher_interfaces/srv/solve_ik.hpp"
 
@@ -26,6 +27,8 @@ public:
     base_link_ = this->declare_parameter<std::string>("base_link", "base_link");
     tip_link_ = this->declare_parameter<std::string>("tip_link", "end_effector_link");
     service_name_ = this->declare_parameter<std::string>("ik_service", "/solve_ik");
+    robot_description_node_ =
+        this->declare_parameter<std::string>("robot_description_node", "/robot_state_publisher");
     this->declare_parameter<std::string>("robot_description", "");
 
     timeout_ = this->declare_parameter<double>("timeout", 0.01);
@@ -37,26 +40,33 @@ public:
     sol_pub_ = this->create_publisher<sensor_msgs::msg::JointState>("/main_joint_states", 10);
 
     init_timer_ = this->create_wall_timer(
-        std::chrono::milliseconds(0),
+        std::chrono::milliseconds(500),
         [this]()
         {
-          init_timer_->cancel();
-          this->init_solver(); // safe shared_from_this() here
+          if (this->init_solver())
+          {
+            init_timer_->cancel();
+          }
         });
     max_dq = this->declare_parameter<double>("max_dq", 0.1);
   }
 
 private:
-  void init_solver()
+  bool init_solver()
   {
+    if (ik_)
+    {
+      return true;
+    }
+
     std::string urdf;
     this->get_parameter("robot_description", urdf);
     if (urdf.empty())
     {
-      RCLCPP_ERROR(get_logger(),
-                   "robot_description is empty. Pass it as a parameter to this node from launch.");
-      return;
+      request_robot_description();
+      return false;
     }
+
     // Construct TRAC-IK using node shared ptr + parameter name
     ik_ = std::make_unique<TRAC_IK::TRAC_IK>(
         this->shared_from_this(), // <-- required on Jazzy
@@ -75,7 +85,7 @@ private:
       RCLCPP_ERROR(get_logger(), "Failed to build KDL chain from %s to %s",
                    base_link_.c_str(), tip_link_.c_str());
       ik_.reset();
-      return;
+      return false;
     }
 
     ok = ik_->getKDLLimits(lower_, upper_);
@@ -83,7 +93,7 @@ private:
     {
       RCLCPP_ERROR(get_logger(), "Failed to read joint limits from URDF.");
       ik_.reset();
-      return;
+      return false;
     }
 
     seed_.resize(chain_.getNrOfJoints());
@@ -117,7 +127,7 @@ private:
                    "Mismatch: extracted %zu joint names but chain reports %u joints",
                    joint_names_.size(), chain_.getNrOfJoints());
       ik_.reset();
-      return;
+      return false;
     }
 
     is_continuous_.assign(chain_.getNrOfJoints(), false);
@@ -138,6 +148,68 @@ private:
     RCLCPP_INFO(get_logger(),
                 "TRAC-IK initialized: joints=%u (base=%s tip=%s)",
                 chain_.getNrOfJoints(), base_link_.c_str(), tip_link_.c_str());
+    return true;
+  }
+
+  bool request_robot_description()
+  {
+    if (!param_client_)
+    {
+      param_client_ = std::make_shared<rclcpp::AsyncParametersClient>(
+          this->shared_from_this(), robot_description_node_);
+    }
+
+    if (!param_client_->wait_for_service(std::chrono::milliseconds(50)))
+    {
+      RCLCPP_WARN_THROTTLE(
+          get_logger(), *get_clock(), 5000,
+          "Waiting for parameter service from %s", robot_description_node_.c_str());
+      return false;
+    }
+
+    if (robot_description_request_pending_)
+    {
+      return false;
+    }
+
+    robot_description_request_pending_ = true;
+    param_client_->get_parameters(
+        {"robot_description"},
+        [this](std::shared_future<std::vector<rclcpp::Parameter>> result_future)
+        {
+          robot_description_request_pending_ = false;
+
+          std::vector<rclcpp::Parameter> params;
+          try
+          {
+            params = result_future.get();
+          }
+          catch (const std::exception &e)
+          {
+            RCLCPP_WARN_THROTTLE(
+                get_logger(), *get_clock(), 5000,
+                "Failed to fetch robot_description from %s: %s",
+                robot_description_node_.c_str(), e.what());
+            return;
+          }
+
+          if (params.empty() ||
+              params[0].get_type() != rclcpp::ParameterType::PARAMETER_STRING ||
+              params[0].as_string().empty())
+          {
+            RCLCPP_WARN_THROTTLE(
+                get_logger(), *get_clock(), 5000,
+                "robot_description parameter on %s is missing or empty",
+                robot_description_node_.c_str());
+            return;
+          }
+
+          this->set_parameter(params[0]);
+          RCLCPP_INFO(get_logger(), "Fetched robot_description from %s",
+                      robot_description_node_.c_str());
+        });
+
+    return false;
   }
 
   void on_solve_ik(const std::shared_ptr<SolveIK::Request> request,
@@ -146,8 +218,8 @@ private:
     if (!ik_)
     {
       response->success = false;
-      response->message =
-          "No TRAC-IK solver yet; waiting for a non-empty robot_description parameter.";
+      response->message = "No TRAC-IK solver yet; waiting for robot_description from " +
+                          robot_description_node_ + ".";
       RCLCPP_WARN(get_logger(), "%s", response->message.c_str());
       return;
     }
@@ -258,11 +330,13 @@ private:
   std::string base_link_;
   std::string tip_link_;
   std::string service_name_;
+  std::string robot_description_node_;
   double timeout_{0.01};
   double eps_{1e-5};
 
   rclcpp::Service<SolveIK>::SharedPtr ik_service_;
   rclcpp::Publisher<sensor_msgs::msg::JointState>::SharedPtr sol_pub_;
+  std::shared_ptr<rclcpp::AsyncParametersClient> param_client_;
 
   std::unique_ptr<TRAC_IK::TRAC_IK> ik_;
 
@@ -276,6 +350,7 @@ private:
 
   double max_dq{0.1};
   bool have_last_cmd_{false};
+  bool robot_description_request_pending_{false};
   std::vector<double> last_cmd_;
   std::vector<bool> is_continuous_;
 };
