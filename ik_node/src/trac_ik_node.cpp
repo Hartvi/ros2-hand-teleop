@@ -146,7 +146,8 @@ private:
     if (!ik_)
     {
       response->success = false;
-      response->message = "No TRAC-IK solver yet (still waiting for /robot_description).";
+      response->message =
+          "No TRAC-IK solver yet; waiting for a non-empty robot_description parameter.";
       RCLCPP_WARN(get_logger(), "%s", response->message.c_str());
       return;
     }
