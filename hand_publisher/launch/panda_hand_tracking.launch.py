@@ -7,8 +7,6 @@ from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
 
-from launch_ros.actions import Node
-
 
 def generate_launch_description():
     pkg_share = Path(get_package_share_directory("hand_publisher"))
@@ -36,26 +34,11 @@ def generate_launch_description():
         }.items(),
     )
 
-    hand_tracking_nodes = [
-        Node(
-            package="hand_publisher",
-            executable="hand_points_node",
-            name="hand_points_node",
-            output="screen",
-        ),
-        Node(
-            package="hand_publisher",
-            executable="hand_publisher_node",
-            name="hand_publisher_node",
-            output="screen",
-        ),
-        Node(
-            package="hand_publisher",
-            executable="hand_frame_node",
-            name="hand_frame_node",
-            output="screen",
-        ),
-    ]
+    hand_tracking_launch = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(
+            str(pkg_share / "launch" / "hand_tracking_nodes.launch.py")
+        )
+    )
 
     return LaunchDescription(
         [
@@ -93,6 +76,6 @@ def generate_launch_description():
                 description="Seconds to wait before spawning ros2_control controllers.",
             ),
             panda_bringup,
-            *hand_tracking_nodes,
+            hand_tracking_launch,
         ]
     )
