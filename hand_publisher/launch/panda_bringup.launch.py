@@ -4,7 +4,8 @@ import os
 from ament_index_python.packages import get_package_share_directory
 
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, SetEnvironmentVariable, TimerAction
+from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, OpaqueFunction, SetEnvironmentVariable, TimerAction
+from launch.launch_context import LaunchContext
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
 
@@ -13,6 +14,54 @@ from launch_ros.actions import Node
 
 def _prepend_env(path: str, current: str) -> str:
     return f"{path}:{current}" if current else path
+
+
+def _as_bool(value: object) -> bool:
+    if isinstance(value, bool):
+        return value
+    if value is None:
+        return False
+    return str(value).lower() in ("true", "1", "yes", "on")
+
+
+def launch_setup(context: LaunchContext, *args, **kwargs):
+    pkg_share = Path(get_package_share_directory("hand_publisher"))
+    robot_config_path = LaunchConfiguration("robot_config").perform(context)
+    rviz_enabled = _as_bool(LaunchConfiguration("rviz").perform(context))
+    rviz_config_path = LaunchConfiguration("rviz_config").perform(context)
+
+    actions = []
+
+    if rviz_enabled:
+        use_sim_time = True
+
+        try:
+            import yaml
+
+            with open(robot_config_path, "r", encoding="utf-8") as f:
+                config = yaml.safe_load(f)
+            use_sim_time = _as_bool(
+                config["robot"].get("robot_state_publisher", {}).get("use_sim_time", True)
+            )
+        except Exception:
+            pass
+
+        rviz_arguments = []
+        if rviz_config_path:
+            rviz_arguments = ["-d", rviz_config_path]
+
+        actions.append(
+            Node(
+                package="rviz2",
+                executable="rviz2",
+                name="rviz2",
+                output="screen",
+                arguments=rviz_arguments,
+                parameters=[{"use_sim_time": use_sim_time}],
+            )
+        )
+
+    return actions
 
 
 def generate_launch_description():
@@ -31,6 +80,8 @@ def generate_launch_description():
     headless = LaunchConfiguration("headless")
     gazebo_delay = LaunchConfiguration("gazebo_delay")
     controller_delay = LaunchConfiguration("controller_delay")
+    rviz = LaunchConfiguration("rviz")
+    rviz_config = LaunchConfiguration("rviz_config")
 
     description_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
@@ -131,6 +182,16 @@ def generate_launch_description():
                 default_value="5.0",
                 description="Seconds to wait before spawning ros2_control controllers.",
             ),
+            DeclareLaunchArgument(
+                "rviz",
+                default_value="false",
+                description="Whether to launch RViz2.",
+            ),
+            DeclareLaunchArgument(
+                "rviz_config",
+                default_value="",
+                description="Optional path to an RViz config file.",
+            ),
             description_launch,
             TimerAction(
                 period=gazebo_delay,
@@ -140,5 +201,6 @@ def generate_launch_description():
                 period=controller_delay,
                 actions=controller_spawners,
             ),
+            OpaqueFunction(function=launch_setup),
         ]
     )
