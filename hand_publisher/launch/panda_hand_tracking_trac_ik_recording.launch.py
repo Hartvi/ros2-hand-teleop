@@ -97,6 +97,8 @@ def generate_launch_description():
     headless = LaunchConfiguration("headless")
     gazebo_delay = LaunchConfiguration("gazebo_delay")
     controller_delay = LaunchConfiguration("controller_delay")
+    rviz = LaunchConfiguration("rviz")
+    rviz_config = LaunchConfiguration("rviz_config")
 
     panda_bringup = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
@@ -109,6 +111,8 @@ def generate_launch_description():
             "headless": headless,
             "gazebo_delay": gazebo_delay,
             "controller_delay": controller_delay,
+            "rviz": rviz,
+            "rviz_config": rviz_config,
         }.items(),
     )
 
@@ -162,6 +166,16 @@ def generate_launch_description():
                 "controller_delay",
                 default_value="5.0",
                 description="Seconds to wait before spawning ros2_control controllers.",
+            ),
+            DeclareLaunchArgument(
+                "rviz",
+                default_value="false",
+                description="Whether to launch RViz2.",
+            ),
+            DeclareLaunchArgument(
+                "rviz_config",
+                default_value="",
+                description="Optional path to an RViz config file.",
             ),
             panda_bringup,
             hand_tracking_launch,
