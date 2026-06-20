@@ -13,11 +13,12 @@ find_package(rosidl_default_generators REQUIRED)
 
 rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/HandPoints.msg"
+  "msg/Obstacle.msg"
   "srv/SolveIK.srv"
   "srv/AddObject.srv"
   "srv/PlanPose.srv"
   "srv/SmolVLAInference.srv"
-  DEPENDENCIES geometry_msgs
+  DEPENDENCIES geometry_msgs std_msgs
 )
 
 ament_export_dependencies(rosidl_default_runtime)

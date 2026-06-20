@@ -31,6 +31,11 @@ ament_target_dependencies(plan_node
   moveit_msgs moveit_ros_planning_interface shape_msgs
 )
 
+add_executable(obstacle_scene_node src/obstacle_scene_node.cpp)
+ament_target_dependencies(obstacle_scene_node
+  rclcpp hand_publisher_interfaces moveit_msgs moveit_ros_planning_interface shape_msgs
+)
+
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
   find_package(launch_testing_ament_cmake REQUIRED)
@@ -50,6 +55,6 @@ if(BUILD_TESTING)
   )
 endif()
 
-install(TARGETS trac_ik_node plan_node DESTINATION lib/${PROJECT_NAME})
+install(TARGETS trac_ik_node plan_node obstacle_scene_node DESTINATION lib/${PROJECT_NAME})
 
 ament_package()

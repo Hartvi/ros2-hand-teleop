@@ -50,6 +50,7 @@ setup(
             "pose_recorder_node=hand_publisher_node.pose_recorder_node:main",
             "joint_state_merger=hand_publisher_node.joint_state_merger:main",
             "gripper_publisher=hand_publisher_node.gripper_publisher:main",
+            "sdf_obstacle_publisher=hand_publisher_node.sdf_obstacle_publisher:main",
         ],
     },
 
