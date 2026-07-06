@@ -1,6 +1,6 @@
 import numpy as np
 import rclpy
-from hand_publisher_interfaces.srv import SolveIK
+from hand_publisher_interfaces.srv import SolveIK, PlanPose
 from rclpy.node import Node
 from geometry_msgs.msg import PoseStamped, TransformStamped
 from std_msgs.msg import Bool
@@ -9,6 +9,11 @@ from tf2_ros import TransformException, TransformBroadcaster  # type: ignore
 from tf2_ros.buffer import Buffer
 from tf2_ros.transform_listener import TransformListener
 from scipy.spatial.transform import Rotation as R, Slerp
+
+SERVICE_TYPES = {
+    "SolveIK": SolveIK,
+    "PlanPose": PlanPose,
+}
 
 
 class ControllerNode(Node):
@@ -21,13 +26,17 @@ class ControllerNode(Node):
         self.pose_stamped = PoseStamped()
         self.declare_parameter("base_link", "base_link")
         self.declare_parameter("ik_service", "/solve_ik")
+        self.declare_parameter("service_type", "SolveIK")
         self.base_link = (
             self.get_parameter("base_link").get_parameter_value().string_value
         )
+        self.service_type = SERVICE_TYPES[
+            self.get_parameter("service_type").get_parameter_value().string_value
+        ]
         self.ik_service_name = (
             self.get_parameter("ik_service").get_parameter_value().string_value
         )
-        self.ik_client = self.create_client(SolveIK, self.ik_service_name)
+        self.ik_client = self.create_client(self.service_type, self.ik_service_name)
         self.pending_ik_future = None
         self.last_ik_service_warn_ns = 0
         self.timer = self.create_timer(0.1, self.lookup_transform)
@@ -63,7 +72,7 @@ class ControllerNode(Node):
                 self.last_ik_service_warn_ns = now_ns
             return
 
-        request = SolveIK.Request()
+        request = self.service_type.Request()
         request.target.header.frame_id = self.pose_stamped.header.frame_id
         request.target.header.stamp = self.pose_stamped.header.stamp
         request.target.pose.position.x = self.pose_stamped.pose.position.x

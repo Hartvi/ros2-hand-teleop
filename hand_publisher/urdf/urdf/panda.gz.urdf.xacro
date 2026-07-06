@@ -1,7 +1,18 @@
 <?xml version="1.0"?>
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro">
 
-  <xacro:macro name="panda_gz_ros2_control" params="controllers_file">
+  <xacro:macro name="panda_gz_ros2_control" params="
+    controllers_file
+    initial_panda_joint1
+    initial_panda_joint2
+    initial_panda_joint3
+    initial_panda_joint4
+    initial_panda_joint5
+    initial_panda_joint6
+    initial_panda_joint7
+    initial_panda_finger_joint1
+    initial_panda_finger_joint2
+  ">
     <ros2_control name="gz_ros2_control" type="system">
       <hardware>
         <plugin>gz_ros2_control/GazeboSimSystem</plugin>
@@ -9,55 +20,73 @@
 
       <joint name="panda_joint1">
         <command_interface name="position"/>
-        <state_interface name="position"/>
+        <state_interface name="position">
+          <param name="initial_value">${initial_panda_joint1}</param>
+        </state_interface>
         <state_interface name="velocity"/>
       </joint>
 
       <joint name="panda_joint2">
         <command_interface name="position"/>
-        <state_interface name="position"/>
+        <state_interface name="position">
+          <param name="initial_value">${initial_panda_joint2}</param>
+        </state_interface>
         <state_interface name="velocity"/>
       </joint>
 
       <joint name="panda_joint3">
         <command_interface name="position"/>
-        <state_interface name="position"/>
+        <state_interface name="position">
+          <param name="initial_value">${initial_panda_joint3}</param>
+        </state_interface>
         <state_interface name="velocity"/>
       </joint>
 
       <joint name="panda_joint4">
         <command_interface name="position"/>
-        <state_interface name="position"/>
+        <state_interface name="position">
+          <param name="initial_value">${initial_panda_joint4}</param>
+        </state_interface>
         <state_interface name="velocity"/>
       </joint>
 
       <joint name="panda_joint5">
         <command_interface name="position"/>
-        <state_interface name="position"/>
+        <state_interface name="position">
+          <param name="initial_value">${initial_panda_joint5}</param>
+        </state_interface>
         <state_interface name="velocity"/>
       </joint>
 
       <joint name="panda_joint6">
         <command_interface name="position"/>
-        <state_interface name="position"/>
+        <state_interface name="position">
+          <param name="initial_value">${initial_panda_joint6}</param>
+        </state_interface>
         <state_interface name="velocity"/>
       </joint>
 
       <joint name="panda_joint7">
         <command_interface name="position"/>
-        <state_interface name="position"/>
+        <state_interface name="position">
+          <param name="initial_value">${initial_panda_joint7}</param>
+        </state_interface>
         <state_interface name="velocity"/>
       </joint>
 
       <joint name="panda_finger_joint1">
         <command_interface name="position"/>
-        <state_interface name="position"/>
+        <state_interface name="position">
+          <param name="initial_value">${initial_panda_finger_joint1}</param>
+        </state_interface>
         <state_interface name="velocity"/>
       </joint>
 
       <joint name="panda_finger_joint2">
         <command_interface name="position"/>
-        <state_interface name="position"/>
+        <state_interface name="position">
+          <param name="initial_value">${initial_panda_finger_joint2}</param>
+        </state_interface>
         <state_interface name="velocity"/>
       </joint>
     </ros2_control>

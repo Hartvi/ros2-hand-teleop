@@ -115,7 +115,7 @@ def generate_launch_description():
             package="controller_manager",
             executable="spawner",
             arguments=[
-                "arm_controller",
+                "panda_arm_controller",
                 "--controller-manager",
                 "/controller_manager",
                 "--param-file",
