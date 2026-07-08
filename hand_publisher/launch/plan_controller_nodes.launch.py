@@ -103,6 +103,7 @@ def launch_setup(context: LaunchContext, *args, **kwargs):
                             "base_link": base_link,
                             "service_type": "PlanPose",
                             "ik_service": "/plan_and_execute",
+                            "request_mode": "on_stop",
                             "use_sim_time": use_sim_time,
                         }
                     ],
