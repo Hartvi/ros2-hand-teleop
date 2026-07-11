@@ -120,7 +120,6 @@ private:
         }
         known_obstacles_[msg->id] = summary;
     }
-    (os.path.join("share", package_name, "config"), glob("config/*.yaml")),
 
     bool makePrimitive(
         const hand_publisher_interfaces::msg::Obstacle &msg,

@@ -12,6 +12,8 @@ from tf2_msgs.msg import TFMessage
 
 
 IGNORED_MODEL_NAMES = {"panda", "sun", "ground_plane", "ground plane"}
+DEFAULT_GROUND_PLANE_SIZE = 20.0
+DEFAULT_GROUND_PLANE_THICKNESS = 0.02
 
 
 def _parse_floats(text: Optional[str], count: int, default: float = 0.0) -> list[float]:
@@ -110,11 +112,21 @@ class SdfObstaclePublisher(Node):
         self.declare_parameter("gazebo_tf_topic", "")
         self.declare_parameter("publish_period", 1.0)
         self.declare_parameter("ignored_models", list(IGNORED_MODEL_NAMES))
+        self.declare_parameter("include_ground_plane", True)
+        self.declare_parameter("ground_plane_size", DEFAULT_GROUND_PLANE_SIZE)
+        self.declare_parameter("ground_plane_thickness", DEFAULT_GROUND_PLANE_THICKNESS)
 
         self.frame_id = self.get_parameter("frame_id").value
         self.ignored_models = {
             str(name).lower() for name in self.get_parameter("ignored_models").value
         }
+        self.include_ground_plane = bool(
+            self.get_parameter("include_ground_plane").value
+        )
+        self.ground_plane_size = float(self.get_parameter("ground_plane_size").value)
+        self.ground_plane_thickness = float(
+            self.get_parameter("ground_plane_thickness").value
+        )
         obstacle_topic = self.get_parameter("obstacle_topic").value
         self.publisher = self.create_publisher(Obstacle, obstacle_topic, 10)
 
@@ -124,6 +136,8 @@ class SdfObstaclePublisher(Node):
 
         world_path = self._resolve_world_path(self.get_parameter("world_path").value)
         self._load_world(world_path)
+        if self.include_ground_plane:
+            self._add_ground_plane()
 
         gazebo_tf_topic = self.get_parameter("gazebo_tf_topic").value
         if gazebo_tf_topic:
@@ -167,7 +181,26 @@ class SdfObstaclePublisher(Node):
                 self._add_collision(model_name, model_pose, collision)
 
         self.get_logger().info(
-            f"Loaded {len(self.obstacles)} obstacle primitives from {world_path}"
+            f"Loaded SDF obstacle primitives from {world_path}"
+        )
+
+    def _add_ground_plane(self):
+        thickness = max(self.ground_plane_thickness, 0.001)
+
+        obstacle = Obstacle()
+        obstacle.header.frame_id = self.frame_id
+        obstacle.id = "ground_plane"
+        obstacle.type = "box"
+        obstacle.dimensions = [self.ground_plane_size, self.ground_plane_size, thickness]
+        obstacle.pose.position.z = -0.5 * thickness
+        obstacle.pose.orientation.w = 1.0
+        obstacle.remove = False
+
+        self.obstacles[obstacle.id] = obstacle
+        self.collision_offsets[obstacle.id] = Pose()
+        self.get_logger().info(
+            f"Added ground plane obstacle size={self.ground_plane_size:.3f} "
+            f"thickness={thickness:.3f}"
         )
 
     def _add_collision(self, model_name: str, model_pose: Pose, collision: ET.Element):
@@ -234,6 +267,7 @@ class SdfObstaclePublisher(Node):
 
     def _publish_all(self):
         stamp = self.get_clock().now().to_msg()
+        self.get_logger().debug(f"Publishing {len(self.obstacles)} planning obstacles")
         for obstacle in self.obstacles.values():
             obstacle.header.stamp = stamp
             obstacle.header.frame_id = self.frame_id
