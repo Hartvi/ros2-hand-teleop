@@ -51,6 +51,7 @@ setup(
             "joint_state_merger=hand_publisher_node.joint_state_merger:main",
             "gripper_publisher=hand_publisher_node.gripper_publisher:main",
             "sdf_obstacle_publisher=hand_publisher_node.sdf_obstacle_publisher:main",
+            "planning_scene_dump_node=hand_publisher_node.planning_scene_dump_node:main",
         ],
     },
 

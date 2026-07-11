@@ -85,6 +85,7 @@ def generate_launch_description():
         ),
         launch_arguments={
             "robot_config": robot_config,
+            "gazebo_config": gazebo_config,
             "controller_delay": controller_delay,
             "ros2_control_hardware_type": ros2_control_hardware_type,
         }.items(),

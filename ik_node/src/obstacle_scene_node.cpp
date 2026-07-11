@@ -12,7 +12,6 @@
 #include <shape_msgs/msg/solid_primitive.hpp>
 
 #include <moveit/planning_scene_interface/planning_scene_interface.hpp>
-#include <moveit/move_group_interface/move_group_interface.hpp>
 
 class ObstacleSceneNode : public rclcpp::Node
 {
@@ -25,36 +24,14 @@ public:
         init_timer_ = create_wall_timer(
             std::chrono::milliseconds(100),
             std::bind(&ObstacleSceneNode::initializeMoveIt, this));
-        init_timer_move_group_ = create_wall_timer(
-            std::chrono::milliseconds(100),
-            std::bind(&ObstacleSceneNode::initializeMoveGroupInterface, this));
     }
 
     ~ObstacleSceneNode() override
     {
         planning_scene_interface_.reset();
-        move_group_interface_.reset();
     }
 
 private:
-    void initializeMoveGroupInterface()
-    {
-        if (move_group_interface_)
-        {
-            return;
-        }
-
-        init_timer_move_group_->cancel();
-
-        std::string move_group_name = "panda_arm";
-        get_parameter_or("move_group_name", move_group_name, std::string("panda_arm"));
-
-        move_group_interface_ =
-            std::make_unique<moveit::planning_interface::MoveGroupInterface>(
-                shared_from_this(), move_group_name);
-        move_group_interface_->setPlanningTime(5.0);
-    }
-
     void initializeMoveIt()
     {
         if (planning_scene_interface_)
@@ -143,6 +120,7 @@ private:
         }
         known_obstacles_[msg->id] = summary;
     }
+    (os.path.join("share", package_name, "config"), glob("config/*.yaml")),
 
     bool makePrimitive(
         const hand_publisher_interfaces::msg::Obstacle &msg,
@@ -240,11 +218,9 @@ private:
 
     std::string planning_frame_ = "world";
     std::unique_ptr<moveit::planning_interface::PlanningSceneInterface> planning_scene_interface_;
-    std::unique_ptr<moveit::planning_interface::MoveGroupInterface> move_group_interface_;
     rclcpp::Subscription<hand_publisher_interfaces::msg::Obstacle>::SharedPtr obstacle_sub_;
     rclcpp::Subscription<moveit_msgs::msg::PlanningScene>::SharedPtr planning_scene_sub_;
     rclcpp::TimerBase::SharedPtr init_timer_;
-    rclcpp::TimerBase::SharedPtr init_timer_move_group_;
     std::unordered_map<std::string, std::string> known_obstacles_;
 };
 
