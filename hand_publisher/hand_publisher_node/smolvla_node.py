@@ -6,6 +6,7 @@ from typing import Any
 import numpy as np
 import rclpy
 from rclpy.node import Node
+from rclpy.qos import qos_profile_sensor_data
 from sensor_msgs.msg import Image
 from sensor_msgs.msg import JointState
 import torch
@@ -258,6 +259,10 @@ class SmolVlaNode(Node):
         self.declare_parameter("task", "Teleop task")
         self.declare_parameter("state", "")
         self.declare_parameter("joint_state_topic", JOINT_STATES_TOPIC)
+        self.declare_parameter("state_joint_names", [
+            "panda_joint1", "panda_joint2", "panda_joint3",
+            "panda_joint4", "panda_joint5", "panda_joint6",
+        ])
 
         self.repo_id = str(self.get_parameter("repo_id").value)
         self.device = choose_device(str(self.get_parameter("device").value))
@@ -265,6 +270,7 @@ class SmolVlaNode(Node):
         self.task = str(self.get_parameter("task").value)
         self.state_raw = str(self.get_parameter("state").value)
         self.joint_state_topic = str(self.get_parameter("joint_state_topic").value)
+        self.state_joint_names = list(self.get_parameter("state_joint_names").value)
 
         if not self.repo_id:
             raise ValueError(
@@ -329,7 +335,7 @@ class SmolVlaNode(Node):
                 callback=lambda msg, image_key=key: self.listener_callback(
                     msg, image_key
                 ),
-                qos_profile=1,
+                qos_profile=qos_profile_sensor_data,
             )
             self._image_subscriptions.append(sub)
 
@@ -390,8 +396,9 @@ class SmolVlaNode(Node):
                 return response
 
             # All required images are present; run inference
+            task_command = str(getattr(request, "task_command", "") or self.task)
             raw_obs: dict[str, Any] = {
-                "task": self.task,
+                "task": task_command,
                 self.state_key: self.latest_state.copy(),
             }
 
@@ -468,10 +475,21 @@ class SmolVlaNode(Node):
     def joint_state_callback(self, msg: JointState) -> None:
         """Buffer the latest robot state from /joint_states."""
         try:
+            position_by_name = {
+                name: position
+                for name, position in zip(msg.name, msg.position)
+            }
+            if all(name in position_by_name for name in self.state_joint_names):
+                self.latest_state = np.asarray(
+                    [position_by_name[name] for name in self.state_joint_names],
+                    dtype=np.float32,
+                )
+                return
+
             positions = np.asarray(msg.position, dtype=np.float32)
             if positions.shape[0] != self.state_dim:
                 self.get_logger().warn(
-                    "Ignoring joint state with %d positions; expected %d."
+                    "Ignoring joint state with %d positions; expected named state or %d values."
                     % (positions.shape[0], self.state_dim)
                 )
                 return
