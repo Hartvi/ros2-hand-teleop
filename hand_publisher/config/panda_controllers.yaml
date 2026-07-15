@@ -5,13 +5,13 @@ controller_manager:
     joint_state_broadcaster:
       type: joint_state_broadcaster/JointStateBroadcaster
 
-    arm_controller:
-      type: forward_command_controller/ForwardCommandController
+    panda_arm_controller:
+      type: joint_trajectory_controller/JointTrajectoryController
 
     gripper_controller:
       type: forward_command_controller/ForwardCommandController
 
-arm_controller:
+panda_arm_controller:
   ros__parameters:
     joints:
       - panda_joint1
@@ -21,7 +21,11 @@ arm_controller:
       - panda_joint5
       - panda_joint6
       - panda_joint7
-    interface_name: position
+    command_interfaces:
+      - position
+    state_interfaces:
+      - position
+      - velocity
 
 gripper_controller:
   ros__parameters:

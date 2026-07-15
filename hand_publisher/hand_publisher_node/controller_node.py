@@ -1,6 +1,6 @@
 import numpy as np
 import rclpy
-from hand_publisher_interfaces.srv import SolveIK
+from hand_publisher_interfaces.srv import SolveIK, PlanPose
 from rclpy.node import Node
 from geometry_msgs.msg import PoseStamped, TransformStamped
 from std_msgs.msg import Bool
@@ -9,6 +9,11 @@ from tf2_ros import TransformException, TransformBroadcaster  # type: ignore
 from tf2_ros.buffer import Buffer
 from tf2_ros.transform_listener import TransformListener
 from scipy.spatial.transform import Rotation as R, Slerp
+
+SERVICE_TYPES = {
+    "SolveIK": SolveIK,
+    "PlanPose": PlanPose,
+}
 
 
 class ControllerNode(Node):
@@ -21,14 +26,28 @@ class ControllerNode(Node):
         self.pose_stamped = PoseStamped()
         self.declare_parameter("base_link", "base_link")
         self.declare_parameter("ik_service", "/solve_ik")
+        self.declare_parameter("service_type", "SolveIK")
+        self.declare_parameter("request_mode", "continuous")
         self.base_link = (
             self.get_parameter("base_link").get_parameter_value().string_value
         )
+        self.service_type = SERVICE_TYPES[
+            self.get_parameter("service_type").get_parameter_value().string_value
+        ]
         self.ik_service_name = (
             self.get_parameter("ik_service").get_parameter_value().string_value
         )
-        self.ik_client = self.create_client(SolveIK, self.ik_service_name)
+        self.request_mode = (
+            self.get_parameter("request_mode").get_parameter_value().string_value
+        )
+        if self.request_mode not in ("continuous", "on_stop"):
+            self.get_logger().warning(
+                f"Unknown request_mode '{self.request_mode}', using continuous"
+            )
+            self.request_mode = "continuous"
+        self.ik_client = self.create_client(self.service_type, self.ik_service_name)
         self.pending_ik_future = None
+        self.pending_on_stop_request = False
         self.last_ik_service_warn_ns = 0
         self.timer = self.create_timer(0.1, self.lookup_transform)
 
@@ -63,7 +82,7 @@ class ControllerNode(Node):
                 self.last_ik_service_warn_ns = now_ns
             return
 
-        request = SolveIK.Request()
+        request = self.service_type.Request()
         request.target.header.frame_id = self.pose_stamped.header.frame_id
         request.target.header.stamp = self.pose_stamped.header.stamp
         request.target.pose.position.x = self.pose_stamped.pose.position.x
@@ -86,10 +105,13 @@ class ControllerNode(Node):
             self.get_logger().warning(f"IK service call failed: {exc}")
 
     def _moving_cb(self, msg: Bool):
+        stopped_moving = self.moving and not msg.data
         if msg.data and not self.moving:
             # Just started moving - reset previous pose so first delta is zero
             self.prev_t = None
         self.moving = msg.data
+        if self.request_mode == "on_stop" and stopped_moving:
+            self.pending_on_stop_request = True
 
     def lookup_transform(self):
         try:
@@ -132,7 +154,11 @@ class ControllerNode(Node):
         self.pose_stamped.pose.orientation.z = float(quat[2])
         self.pose_stamped.pose.orientation.w = float(quat[3])
         self.target_pub.publish(self.pose_stamped)
-        self._send_ik_request()
+        if self.request_mode == "continuous":
+            self._send_ik_request()
+        elif self.pending_on_stop_request:
+            self.pending_on_stop_request = False
+            self._send_ik_request()
         # Also publish as a TF frame
         tf_msg = TransformStamped()
         tf_msg.header.frame_id = self.base_link

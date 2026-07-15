@@ -10,6 +10,16 @@
     <xacro:arg name="use_gz" default="false"/>
     <xacro:arg name="controllers_file" default=""/>
 
+    <xacro:arg name="initial_panda_joint1" default="0.0"/>
+    <xacro:arg name="initial_panda_joint2" default="-0.785"/>
+    <xacro:arg name="initial_panda_joint3" default="0.0"/>
+    <xacro:arg name="initial_panda_joint4" default="-2.356"/>
+    <xacro:arg name="initial_panda_joint5" default="0.0"/>
+    <xacro:arg name="initial_panda_joint6" default="1.571"/>
+    <xacro:arg name="initial_panda_joint7" default="0.785"/>
+    <xacro:arg name="initial_panda_finger_joint1" default="0.04"/>
+    <xacro:arg name="initial_panda_finger_joint2" default="0.04"/>
+
     <xacro:arg name="enable_ee_camera" default="true"/>
     <xacro:arg name="enable_base_camera" default="true"/>
 
@@ -308,6 +318,15 @@
 
         <xacro:panda_gz_ros2_control
             controllers_file="$(arg controllers_file)"
+            initial_panda_joint1="$(arg initial_panda_joint1)"
+            initial_panda_joint2="$(arg initial_panda_joint2)"
+            initial_panda_joint3="$(arg initial_panda_joint3)"
+            initial_panda_joint4="$(arg initial_panda_joint4)"
+            initial_panda_joint5="$(arg initial_panda_joint5)"
+            initial_panda_joint6="$(arg initial_panda_joint6)"
+            initial_panda_joint7="$(arg initial_panda_joint7)"
+            initial_panda_finger_joint1="$(arg initial_panda_finger_joint1)"
+            initial_panda_finger_joint2="$(arg initial_panda_finger_joint2)"
         />
 
         <xacro:if value="$(arg enable_ee_camera)">

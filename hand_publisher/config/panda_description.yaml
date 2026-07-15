@@ -25,3 +25,11 @@ robot:
     base_camera_image_topic: /panda/base_camera/image_raw
     base_camera_info_topic: /panda/base_camera/camera_info
     base_camera_pose: "0.5 -1.5 1.5 0 0.564 1.249"
+
+    initial_panda_joint1: 0.0
+    initial_panda_joint2: -0.785
+    initial_panda_joint3: 0.0
+    initial_panda_joint4: -2.356
+    initial_panda_joint5: 0.0
+    initial_panda_joint6: 1.571
+    initial_panda_joint7: 0.785
