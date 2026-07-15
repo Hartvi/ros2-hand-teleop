@@ -46,6 +46,7 @@ setup(
             "hand_frame_node=hand_publisher_node.hand_frame_node:main",
             "controller_node=hand_publisher_node.controller_node:main",
             "smolvla_node=hand_publisher_node.smolvla_node:main",
+            "smolvla_control_node=hand_publisher_node.smolvla_control_node:main",
             "mic_trigger_node=hand_publisher_node.mic_trigger_node:main",
             "pose_recorder_node=hand_publisher_node.pose_recorder_node:main",
             "joint_state_merger=hand_publisher_node.joint_state_merger:main",
